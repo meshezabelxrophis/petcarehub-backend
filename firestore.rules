@@ -1,0 +1,319 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ========================================================================
+    // Helper Functions
+    // ========================================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function getUserRole() {
+      // First try custom claims (faster, no Firestore read)
+      return request.auth.token.role;
+    }
+    
+    function getUserRoleFromDb() {
+      // Fallback: Read from Firestore if custom claims not set
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    function hasRole(role) {
+      return isAuthenticated() && (
+        (request.auth.token.role != null && request.auth.token.role == role) ||
+        getUserRoleFromDb() == role
+      );
+    }
+    
+    function isAdmin() {
+      return hasRole('admin');
+    }
+    
+    function isProvider() {
+      return hasRole('serviceProvider');
+    }
+    
+    function isPetOwner() {
+      return hasRole('petOwner');
+    }
+    
+    // ========================================================================
+    // Users Collection
+    // Users can only access their own data
+    // Admins have full access
+    // ========================================================================
+    
+    match /users/{userId} {
+      // Anyone can read user profiles (for provider listings, etc.)
+      allow read: if isAuthenticated();
+      
+      // Users can create their own profile during signup
+      allow create: if isAuthenticated() && isOwner(userId);
+      
+      // Users can update their own profile, admins can update any profile
+      allow update: if isOwner(userId) || isAdmin();
+      
+      // Only admins can delete users
+      allow delete: if isAdmin();
+    }
+    
+    // ========================================================================
+    // Pets Collection
+    // Pet owners can manage their own pets
+    // Admins have full access
+    // ========================================================================
+    
+    match /pets/{petId} {
+      // All authenticated users can read pets (for bookings, etc.)
+      allow read: if isAuthenticated();
+      
+      // Any authenticated user can create a pet
+      allow create: if isAuthenticated();
+      
+      // Only the owner or admin can update
+      allow update: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid || isAdmin()
+      );
+      
+      // Only the owner or admin can delete
+      allow delete: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid || isAdmin()
+      );
+    }
+    
+    // ========================================================================
+    // Services Collection
+    // Providers can manage their own services
+    // Everyone can read (public listings)
+    // Admins have full access
+    // ========================================================================
+    
+    match /services/{serviceId} {
+      // Public read - anyone can browse services
+      allow read: if true;
+      
+      // Only providers and admins can create services
+      allow create: if isProvider() || isAdmin();
+      
+      // Only the provider who owns the service or admin can update
+      allow update: if (
+        isProvider() && resource.data.providerId == request.auth.uid
+      ) || isAdmin();
+      
+      // Only the provider who owns the service or admin can delete
+      allow delete: if (
+        isProvider() && resource.data.providerId == request.auth.uid
+      ) || isAdmin();
+    }
+    
+    // ========================================================================
+    // Bookings Collection
+    // Users can view/manage their own bookings
+    // Providers can view/manage bookings for their services
+    // Admins have full access
+    // ========================================================================
+    
+    match /bookings/{bookingId} {
+      // User can read if they are the customer, the provider, or an admin
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.providerId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // Any authenticated user can create a booking
+      allow create: if isAuthenticated();
+      
+      // User or provider or admin can update
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.providerId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // Only admins can delete bookings (for data integrity)
+      allow delete: if isAdmin();
+    }
+    
+    // ========================================================================
+    // Payments Collection
+    // Users can view their own payments
+    // Providers can view payments for their bookings
+    // Admins have full access
+    // ========================================================================
+    
+    match /payments/{paymentId} {
+      // Read if user made the payment, provider received it, or admin
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.providerId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // Only system (admin) can create payment records
+      allow create: if isAdmin();
+      
+      // Only admin can update payments
+      allow update: if isAdmin();
+      
+      // Only admin can delete payments
+      allow delete: if isAdmin();
+    }
+    
+    // ========================================================================
+    // Reviews Collection
+    // Public read, users can create/edit their own reviews
+    // ========================================================================
+    
+    match /reviews/{reviewId} {
+      // Public read - anyone can see reviews
+      allow read: if true;
+      
+      // Any authenticated user can create a review
+      allow create: if isAuthenticated();
+      
+      // Only the review author or admin can update
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+      
+      // Only the review author or admin can delete
+      allow delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+    }
+    
+    // ========================================================================
+    // Messages Collection (for chat)
+    // Users can only access messages they sent or received
+    // ========================================================================
+    
+    match /messages/{messageId} {
+      // Can read if sender or receiver
+      allow read: if isAuthenticated() && (
+        resource.data.senderId == request.auth.uid ||
+        resource.data.receiverId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // Can create if authenticated and sender matches auth user
+      allow create: if isAuthenticated() && request.resource.data.senderId == request.auth.uid;
+      
+      // Messages cannot be edited (immutable)
+      allow update: if false;
+      
+      // Only sender or admin can delete
+      allow delete: if isAuthenticated() && (
+        resource.data.senderId == request.auth.uid || isAdmin()
+      );
+    }
+    
+    // ========================================================================
+    // Conversations Collection
+    // Users can only access conversations they participate in
+    // ========================================================================
+    
+    match /conversations/{conversationId} {
+      // Can read if user is a participant
+      allow read: if isAuthenticated() && (
+        request.auth.uid in resource.data.participants || isAdmin()
+      );
+      
+      // Can create if user is in participants list
+      allow create: if isAuthenticated() && (
+        request.auth.uid in request.resource.data.participants
+      );
+      
+      // Can update if user is a participant
+      allow update: if isAuthenticated() && (
+        request.auth.uid in resource.data.participants || isAdmin()
+      );
+      
+      // Only admin can delete
+      allow delete: if isAdmin();
+    }
+    
+    // ========================================================================
+    // Notifications Collection
+    // Users can only access their own notifications
+    // ========================================================================
+    
+    match /notifications/{notificationId} {
+      // Users can read their own notifications
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+      
+      // System can create notifications
+      allow create: if isAuthenticated();
+      
+      // Users can update their own notifications (mark as read)
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+      
+      // Users can delete their own notifications
+      allow delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+    }
+    
+    // ========================================================================
+    // Pet Location History
+    // Owners can access their own pets' location history
+    // ========================================================================
+    
+    match /petLocationHistory/{historyId} {
+      // Can read if user owns the pet
+      allow read: if isAuthenticated() && (
+        get(/databases/$(database)/documents/pets/$(resource.data.petId)).data.ownerId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // System creates location history
+      allow create: if isAuthenticated();
+      
+      // No updates to history
+      allow update: if false;
+      
+      // Only admin can delete
+      allow delete: if isAdmin();
+    }
+    
+    // ========================================================================
+    // Clinics Collection
+    // Public read, providers can manage their own clinics
+    // ========================================================================
+    
+    match /clinics/{clinicId} {
+      // Public read
+      allow read: if true;
+      
+      // Providers and admins can create
+      allow create: if isProvider() || isAdmin();
+      
+      // Only the clinic owner or admin can update
+      allow update: if (
+        isProvider() && resource.data.providerId == request.auth.uid
+      ) || isAdmin();
+      
+      // Only admin can delete
+      allow delete: if isAdmin();
+    }
+    
+    // ========================================================================
+    // Default Deny All Other Collections
+    // Explicit deny for security
+    // ========================================================================
+    
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,117 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    
+    "gps_tracking": {
+      "$petId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        ".validate": "newData.hasChildren(['lat', 'lng', 'lastUpdated'])",
+        "lat": {
+          ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90"
+        },
+        "lng": {
+          ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180"
+        },
+        "lastUpdated": {
+          ".validate": "newData.isNumber() || newData.val() == null"
+        },
+        "accuracy": {
+          ".validate": "newData.isNumber()"
+        },
+        "speed": {
+          ".validate": "newData.isNumber()"
+        },
+        "heading": {
+          ".validate": "newData.isNumber()"
+        },
+        "battery": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+        },
+        "$other": {
+          ".validate": true
+        }
+      }
+    },
+    
+    "messages": {
+      "$chatId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "$messageId": {
+          ".validate": "newData.hasChildren(['senderId', 'receiverId', 'text', 'timestamp'])",
+          "senderId": {
+            ".validate": "newData.isString()"
+          },
+          "receiverId": {
+            ".validate": "newData.isString()"
+          },
+          "text": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 5000"
+          },
+          "timestamp": {
+            ".validate": "newData.isNumber() || newData.val() == null"
+          },
+          "read": {
+            ".validate": "newData.isBoolean()"
+          },
+          "$other": {
+            ".validate": true
+          }
+        }
+      }
+    },
+    
+    "activity_feed": {
+      "$userId": {
+        ".read": "auth != null && auth.uid == $userId",
+        ".write": "auth != null",
+        "$activityId": {
+          ".validate": "newData.hasChildren(['type', 'message', 'timestamp'])",
+          "type": {
+            ".validate": "newData.isString() && newData.val().length > 0"
+          },
+          "message": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 500"
+          },
+          "timestamp": {
+            ".validate": "newData.isNumber() || newData.val() == null"
+          },
+          "read": {
+            ".validate": "newData.isBoolean()"
+          },
+          "$other": {
+            ".validate": true
+          }
+        }
+      }
+    },
+    
+    "onlineStatus": {
+      "$userId": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid == $userId",
+        "status": {
+          ".validate": "newData.isString() && (newData.val() == 'online' || newData.val() == 'offline')"
+        },
+        "lastSeen": {
+          ".validate": "newData.isNumber() || newData.val() == null"
+        },
+        "$other": {
+          ".validate": true
+        }
+      }
+    },
+    
+    "typing": {
+      "$chatId": {
+        "$userId": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid == $userId",
+          ".validate": "newData.isBoolean()"
+        }
+      }
+    }
+  }
+}

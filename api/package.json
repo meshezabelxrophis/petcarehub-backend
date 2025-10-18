@@ -1,0 +1,25 @@
+{
+  "name": "petcarehub-external-api",
+  "version": "1.0.0",
+  "description": "External API for PetCareHub - Stripe, Gemini, Firestore integration",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "keywords": [
+    "petcare",
+    "stripe",
+    "gemini",
+    "firestore",
+    "api"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "firebase-admin": "^13.5.0",
+    "stripe": "^19.1.0"
+  }
+}
+
