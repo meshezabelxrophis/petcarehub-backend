@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: petcarehub-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      # Add these in Render Dashboard manually:
+      # - FIREBASE_PROJECT_ID
+      # - FIREBASE_CLIENT_EMAIL
+      # - FIREBASE_PRIVATE_KEY (paste the entire private key)
+      # - FIREBASE_DATABASE_URL
+      # - STRIPE_SECRET_KEY
+      # - GEMINI_API_KEY
+      # - FRONTEND_URL (your Firebase hosting URL)
+      # - VERCEL_URL (your Vercel app URL)
+    healthCheckPath: /api/users
+    autoDeploy: true
+

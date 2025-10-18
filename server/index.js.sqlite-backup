@@ -1,0 +1,1783 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+const express = require('express');
+const cors = require('cors');
+const http = require('http');
+const socketIo = require('socket.io');
+const pathOriginal = require('path');
+const sqlite3 = require('sqlite3').verbose();
+
+const app = express();
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: {
+    origin: "http://localhost:3000", // React app origin
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
+const PORT = process.env.PORT || 5001;
+
+// SQLite setup
+const dbPath = pathOriginal.join(__dirname, '..', 'database.sqlite');
+console.log('Trying to connect to database at:', dbPath);
+const db = new sqlite3.Database(dbPath, (err) => {
+  if (err) console.error('Database opening error:', err);
+  console.log('Connected to SQLite database at:', dbPath);
+});
+
+// Database is ready - no seeding of dummy data
+const checkDatabaseReady = () => {
+  console.log('Database connection established and tables created');
+};
+
+// Call the function after database connection is established
+db.serialize(() => {
+  // Create users table with all necessary fields (only if not exists)
+  db.run(`CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    password TEXT,
+    account_type TEXT
+  )`, (err) => {
+    if (err) {
+      console.error('Error creating users table:', err.message);
+    } else {
+      console.log('Users table ensured');
+    }
+  });
+  
+  // Create pets table for pet owners
+  db.run(`CREATE TABLE IF NOT EXISTS pets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    breed TEXT,
+    age REAL,
+    gender TEXT,
+    weight REAL,
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (owner_id) REFERENCES users (id)
+  )`, (err) => {
+    if (err) {
+      console.error('Error creating pets table:', err.message);
+    } else {
+      console.log('Pets table created successfully');
+    }
+  });
+  
+  // Create services table for service providers
+  db.run(`CREATE TABLE IF NOT EXISTS services (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    price REAL NOT NULL,
+    FOREIGN KEY (provider_id) REFERENCES users (id)
+  )`, (err) => {
+    if (err) {
+      console.error('Error creating services table:', err.message);
+    } else {
+      console.log('Services table created successfully');
+    }
+  });
+  
+  // Create bookings table to connect pet owners with service providers
+  db.run(`CREATE TABLE IF NOT EXISTS bookings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pet_owner_id INTEGER NOT NULL,
+    service_id INTEGER NOT NULL,
+    pet_id INTEGER NOT NULL,
+    booking_date TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    payment_status TEXT DEFAULT 'unpaid',
+    stripe_session_id TEXT,
+    FOREIGN KEY (pet_owner_id) REFERENCES users (id),
+    FOREIGN KEY (service_id) REFERENCES services (id),
+    FOREIGN KEY (pet_id) REFERENCES pets (id)
+  )`, (err) => {
+    if (err) {
+      console.error('Error creating bookings table:', err.message);
+    } else {
+      console.log('Bookings table created successfully');
+      
+      // Add payment_status and stripe_session_id columns if they don't exist (for existing databases)
+      db.run(`ALTER TABLE bookings ADD COLUMN payment_status TEXT DEFAULT 'unpaid'`, (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+          console.error('Error adding payment_status column:', err.message);
+        }
+      });
+      
+      db.run(`ALTER TABLE bookings ADD COLUMN stripe_session_id TEXT`, (err) => {
+        if (err && !err.message.includes('duplicate column')) {
+          console.error('Error adding stripe_session_id column:', err.message);
+        }
+      });
+    }
+  });
+  
+  // Create provider_profiles table for additional provider information
+  db.run(`CREATE TABLE IF NOT EXISTS provider_profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider_id INTEGER NOT NULL UNIQUE,
+    phone TEXT,
+    address TEXT,
+    bio TEXT,
+    business_hours TEXT,
+    FOREIGN KEY (provider_id) REFERENCES users (id)
+  )`, (err) => {
+    if (err) {
+      console.error('Error creating provider_profiles table:', err.message);
+    } else {
+      console.log('Provider profiles table created successfully');
+    }
+  });
+  
+  // Note: Removed clinic tables - using providers as clinics now
+  
+  // Database ready
+  checkDatabaseReady();
+});
+
+// CORS for local frontend
+app.use(cors({ origin: ['http://localhost:3000'], credentials: true }));
+
+// Special middleware for Stripe webhooks (must be before express.json())
+app.use('/api/webhook', express.raw({ type: 'application/json' }));
+
+app.use(express.json());
+
+// Import and use Stripe routes
+const stripeRouter = require('./stripe');
+app.use('/api', stripeRouter);
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log('🟢 New client connected:', socket.id);
+  
+  // Send current pet location to newly connected client
+  console.log('📤 Sending current location to new client:', petLocationData);
+  socket.emit('petLocationUpdate', {
+    latitude: petLocationData.latitude,
+    longitude: petLocationData.longitude,
+    timestamp: petLocationData.timestamp
+  });
+  
+  socket.on('disconnect', () => {
+    console.log('🔴 Client disconnected:', socket.id);
+  });
+});
+
+// API: Get all users
+app.get('/api/users', (req, res) => {
+  db.all('SELECT id, name, email, account_type FROM users', [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+// API: Add a user
+app.post('/api/users', (req, res) => {
+  const { name, email, password, account_type, address, phone, bio, latitude, longitude } = req.body;
+  
+  console.log('Received registration request:', { name, email, account_type, address, phone, latitude, longitude });
+  
+  db.run(
+    'INSERT INTO users (name, email, password, account_type) VALUES (?, ?, ?, ?)', 
+    [name, email, password || null, account_type || 'petOwner'], 
+    function(err) {
+      if (err) {
+        console.error('Database error:', err.message);
+        return res.status(500).json({ error: err.message });
+      }
+      
+      const userId = this.lastID;
+      console.log(`User created with ID: ${userId}`);
+      
+      // If this is a service provider and we have profile data, create provider profile
+      if (account_type === 'serviceProvider' && (address || phone || bio || latitude || longitude)) {
+        console.log('Creating provider profile for service provider');
+        
+        const businessHours = JSON.stringify({
+          monday: { open: "09:00", close: "17:00", isOpen: true },
+          tuesday: { open: "09:00", close: "17:00", isOpen: true },
+          wednesday: { open: "09:00", close: "17:00", isOpen: true },
+          thursday: { open: "09:00", close: "17:00", isOpen: true },
+          friday: { open: "09:00", close: "17:00", isOpen: true },
+          saturday: { open: "10:00", close: "15:00", isOpen: true },
+          sunday: { open: "10:00", close: "15:00", isOpen: false }
+        });
+        
+        db.run(
+          'INSERT INTO provider_profiles (provider_id, phone, address, bio, business_hours, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [userId, phone || '', address || '', bio || '', businessHours, latitude || null, longitude || null],
+          function(profileErr) {
+            if (profileErr) {
+              console.error('Error creating provider profile:', profileErr.message);
+              // Don't fail the entire registration if profile creation fails
+              // Just log the error and return successful user creation
+            } else {
+              console.log(`Provider profile created for user ${userId}`);
+            }
+            
+            res.status(201).json({ 
+              id: userId, 
+              name, 
+              email,
+              account_type: account_type || 'petOwner'
+            });
+          }
+        );
+      } else {
+        // Regular user or service provider without profile data
+        res.status(201).json({ 
+          id: userId, 
+          name, 
+          email,
+          account_type: account_type || 'petOwner'
+        });
+      }
+    }
+  );
+});
+
+// API: Login
+app.post('/api/login', (req, res) => {
+  const { email, password } = req.body;
+  
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+  
+  
+  db.get('SELECT * FROM users WHERE email = ?', [email], (err, user) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    // In a real application, you would hash passwords and compare hashes
+    // This is just for demonstration purposes
+    if (user.password === password) {
+      // Send user data without password
+      const { password, ...userData } = user;
+      res.json(userData);
+    } else {
+      res.status(401).json({ error: 'Invalid credentials' });
+    }
+  });
+});
+
+// Pet Owner Routes
+
+// Get all pets for a specific owner
+app.get('/api/pets', (req, res) => {
+  const ownerId = req.query.owner_id;
+  const ownerName = req.query.owner_name;
+  
+  if (!ownerId && !ownerName) {
+    return res.status(400).json({ error: 'Owner ID or name is required' });
+  }
+  
+  
+  // Check if we have any in-memory pets for this owner
+  if (global.mockPets) {
+    const ownerPets = global.mockPets.filter(pet => pet.owner_id == ownerId);
+    if (ownerPets.length > 0) {
+      return res.json(ownerPets);
+    }
+  }
+  
+  db.all('SELECT * FROM pets WHERE owner_id = ?', [ownerId], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    // Return what we found in the database
+    
+    res.json(rows);
+  });
+});
+
+// Add a new pet
+app.post('/api/pets', (req, res) => {
+  const { owner_id, name, type, breed, age, gender, weight, notes } = req.body;
+  
+  if (!owner_id || !name || !type) {
+    return res.status(400).json({ error: 'Owner ID, name and type are required' });
+  }
+  
+  // For demonstration purposes, we'll store in memory
+  // Initialize global pets array if it doesn't exist
+  if (!global.mockPets) {
+    global.mockPets = [];
+  }
+  
+  // Generate a unique ID
+  const maxId = global.mockPets.length > 0 
+    ? Math.max(...global.mockPets.map(pet => pet.id)) 
+    : 1000;
+  const newId = maxId + 1;
+  
+  // Create new pet object
+  const newPet = {
+    id: newId,
+    owner_id: parseInt(owner_id),
+    name,
+    type,
+    breed: breed || null,
+    age: age ? parseInt(age) : null,
+    gender: gender || "Male",
+    weight: weight ? parseFloat(weight) : null,
+    notes: notes || null
+  };
+  
+  // Add to mock pets
+  global.mockPets.push(newPet);
+  
+  // Log for demonstration
+  console.log(`New pet added: ${name} (${type}) for owner ${owner_id}`);
+  
+  res.status(201).json(newPet);
+});
+
+// Update an existing pet
+app.put('/api/pets/:id', (req, res) => {
+  const petId = parseInt(req.params.id);
+  const { name, type, breed, age, gender, weight, notes } = req.body;
+  
+  if (!name || !type) {
+    return res.status(400).json({ error: 'Pet name and type are required' });
+  }
+  
+  // Check if we have this pet in memory
+  if (global.mockPets) {
+    const petIndex = global.mockPets.findIndex(pet => pet.id === petId);
+    if (petIndex !== -1) {
+      // Update the pet
+      global.mockPets[petIndex] = {
+        ...global.mockPets[petIndex],
+        name,
+        type,
+        breed: breed || null,
+        age: age ? parseInt(age) : null,
+        gender: gender || global.mockPets[petIndex].gender,
+        weight: weight ? parseFloat(weight) : null,
+        notes: notes || null
+      };
+      
+      return res.json({
+        ...global.mockPets[petIndex],
+        message: 'Pet updated successfully'
+      });
+    }
+  }
+  
+  // For demonstration purposes, we'll just return a successful response
+  res.json({
+    id: petId,
+    owner_id: 2, // Mock owner ID
+    name,
+    type,
+    breed: breed || null,
+    age: age ? parseInt(age) : null,
+    gender: gender || "Male",
+    weight: weight ? parseFloat(weight) : null,
+    notes: notes || null,
+    message: 'Pet updated successfully'
+  });
+});
+
+// Delete a pet
+app.delete('/api/pets/:id', (req, res) => {
+  const petId = parseInt(req.params.id);
+  
+  console.log(`Deleting pet with ID: ${petId}`);
+  
+  // First check if the pet exists in database
+  db.get('SELECT * FROM pets WHERE id = ?', [petId], (err, pet) => {
+    if (err) {
+      console.error('Error checking pet existence:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    
+    if (pet) {
+      // Delete from database
+      db.run('DELETE FROM pets WHERE id = ?', [petId], function(err) {
+        if (err) {
+          console.error('Error deleting pet from database:', err.message);
+          return res.status(500).json({ error: err.message });
+        }
+        
+        console.log(`Pet deleted from database: ${pet.name} (ID: ${petId})`);
+        
+        // Also remove from memory if it exists
+        if (global.mockPets) {
+          const petIndex = global.mockPets.findIndex(p => p.id === petId);
+          if (petIndex !== -1) {
+            global.mockPets.splice(petIndex, 1);
+            console.log(`Pet also removed from memory`);
+          }
+        }
+        
+        return res.json({
+          success: true,
+          message: `Pet with ID ${petId} deleted successfully`,
+          deletedPet: pet
+        });
+      });
+    } else {
+      // Check if we have this pet in memory only
+      if (global.mockPets) {
+        const petIndex = global.mockPets.findIndex(p => p.id === petId);
+        if (petIndex !== -1) {
+          const memoryPet = global.mockPets[petIndex];
+          global.mockPets.splice(petIndex, 1);
+          
+          console.log(`Pet deleted from memory: ${memoryPet.name} (ID: ${petId})`);
+          
+          return res.json({
+            success: true,
+            message: `Pet with ID ${petId} deleted successfully`,
+            deletedPet: memoryPet
+          });
+        }
+      }
+      
+      // Pet not found anywhere
+      console.log(`Pet with ID ${petId} not found`);
+      return res.status(404).json({ error: 'Pet not found' });
+    }
+  });
+});
+
+// Service Provider Routes
+
+// Get all services for a specific provider
+app.post('/api/services', (req, res) => {
+  const { provider_id, name, description, price } = req.body;
+  
+  if (!provider_id || !name || !price) {
+    return res.status(400).json({ error: 'Provider ID, name and price are required' });
+  }
+  
+  // First, verify that the provider is actually a service provider
+  db.get('SELECT account_type FROM users WHERE id = ?', [provider_id], (err, user) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    
+    // If user doesn't exist or is not a service provider, return an error
+    if (!user || user.account_type !== 'serviceProvider') {
+      return res.status(400).json({ 
+        error: 'Invalid provider ID. Services can only be created by service providers.' 
+      });
+    }
+    
+    // If the user is a service provider, proceed with creating the service
+    db.run(
+      'INSERT INTO services (provider_id, name, description, price) VALUES (?, ?, ?, ?)',
+      [provider_id, name, description || '', price],
+      function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.status(201).json({
+          id: this.lastID,
+          provider_id,
+          name,
+          description,
+          price
+        });
+      }
+    );
+  });
+});
+
+// Get all services for a specific provider
+app.get('/api/services', (req, res) => {
+  const providerId = req.query.provider_id;
+  const providerName = req.query.provider_name;
+  
+  if (!providerId && !providerName) {
+    // Return all services if no provider_id or provider_name is specified
+    db.all(`
+      SELECT services.*, users.name as provider_name, users.account_type 
+      FROM services 
+      JOIN users ON services.provider_id = users.id 
+      WHERE users.account_type = 'serviceProvider'
+    `, [], (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(rows);
+    });
+  } else if (providerName) {
+    // Search by provider name in the database
+    db.all(`
+      SELECT services.*, users.name as provider_name, users.account_type 
+      FROM services 
+      JOIN users ON services.provider_id = users.id 
+      WHERE users.name LIKE ? AND users.account_type = 'serviceProvider'
+    `, [`%${providerName}%`], (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(rows);
+    });
+  } else {
+    // Search by provider ID and verify they are a service provider
+    db.all(`
+      SELECT services.*, users.name as provider_name, users.account_type 
+      FROM services 
+      JOIN users ON services.provider_id = users.id 
+      WHERE services.provider_id = ? AND users.account_type = 'serviceProvider'
+    `, [providerId], (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(rows);
+    });
+  }
+});
+
+// Delete a service
+app.delete('/api/services/:id', (req, res) => {
+  const serviceId = req.params.id;
+  
+  console.log(`Deleting service with ID: ${serviceId}`);
+  
+  // First check if the service exists
+  db.get('SELECT * FROM services WHERE id = ?', [serviceId], (err, service) => {
+    if (err) {
+      console.error('Error checking service existence:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    
+    if (!service) {
+      console.log(`Service with ID ${serviceId} not found`);
+      return res.status(404).json({ error: 'Service not found' });
+    }
+    
+    // Delete the service from the database
+    db.run('DELETE FROM services WHERE id = ?', [serviceId], function(err) {
+      if (err) {
+        console.error('Error deleting service:', err.message);
+        return res.status(500).json({ error: err.message });
+      }
+      
+      if (this.changes === 0) {
+        console.log(`No service deleted for ID ${serviceId}`);
+        return res.status(404).json({ error: 'Service not found' });
+      }
+      
+      console.log(`Successfully deleted service with ID ${serviceId}`);
+      res.json({
+        success: true,
+        message: `Service with ID ${serviceId} deleted successfully`,
+        deletedService: service
+      });
+    });
+  });
+});
+
+// Get a single service by ID
+app.get('/api/services/:id', (req, res) => {
+  const serviceId = parseInt(req.params.id);
+  
+  if (isNaN(serviceId)) {
+    return res.status(400).json({ error: 'Invalid service ID' });
+  }
+  
+  db.get('SELECT * FROM services WHERE id = ?', [serviceId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    if (!row) {
+      return res.status(404).json({ error: 'Service not found' });
+    }
+    
+    res.json(row);
+  });
+});
+
+// Provider Profile Routes
+
+// Get provider profile
+app.get('/api/providers/:id/profile', (req, res) => {
+  const providerId = req.params.id;
+  
+  
+  db.get('SELECT * FROM provider_profiles WHERE provider_id = ?', [providerId], (err, profile) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    if (!profile) {
+      // Return empty profile if not found
+      return res.json({
+        provider_id: parseInt(providerId),
+        phone: '',
+        address: '',
+        bio: '',
+        business_hours: JSON.stringify({
+          monday: { open: "09:00", close: "17:00", isOpen: true },
+          tuesday: { open: "09:00", close: "17:00", isOpen: true },
+          wednesday: { open: "09:00", close: "17:00", isOpen: true },
+          thursday: { open: "09:00", close: "17:00", isOpen: true },
+          friday: { open: "09:00", close: "17:00", isOpen: true },
+          saturday: { open: "10:00", close: "15:00", isOpen: true },
+          sunday: { open: "10:00", close: "15:00", isOpen: false }
+        })
+      });
+    }
+    
+    // Parse business_hours JSON string
+    try {
+      profile.business_hours = JSON.parse(profile.business_hours);
+    } catch (e) {
+      profile.business_hours = {
+        monday: { open: "09:00", close: "17:00", isOpen: true },
+        tuesday: { open: "09:00", close: "17:00", isOpen: true },
+        wednesday: { open: "09:00", close: "17:00", isOpen: true },
+        thursday: { open: "09:00", close: "17:00", isOpen: true },
+        friday: { open: "09:00", close: "17:00", isOpen: true },
+        saturday: { open: "10:00", close: "15:00", isOpen: true },
+        sunday: { open: "10:00", close: "15:00", isOpen: false }
+      };
+    }
+    
+    res.json(profile);
+  });
+});
+
+// Create or update provider profile
+app.put('/api/providers/:id/profile', (req, res) => {
+  const providerId = req.params.id;
+  const { phone, address, bio, businessHours, latitude, longitude } = req.body;
+  
+  // Check if profile exists
+  db.get('SELECT * FROM provider_profiles WHERE provider_id = ?', [providerId], (err, profile) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    // Convert businessHours object to JSON string
+    const businessHoursJson = JSON.stringify(businessHours || {});
+    
+    if (!profile) {
+      // Create new profile
+      db.run(
+        'INSERT INTO provider_profiles (provider_id, phone, address, bio, business_hours, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [providerId, phone || '', address || '', bio || '', businessHoursJson, latitude || null, longitude || null],
+        function(err) {
+          if (err) return res.status(500).json({ error: err.message });
+          
+          res.json({
+            id: this.lastID,
+            provider_id: parseInt(providerId),
+            phone: phone || '',
+            address: address || '',
+            bio: bio || '',
+            business_hours: businessHours || {},
+            latitude: latitude || null,
+            longitude: longitude || null
+          });
+        }
+      );
+    } else {
+      // Update existing profile
+      db.run(
+        'UPDATE provider_profiles SET phone = ?, address = ?, bio = ?, business_hours = ?, latitude = ?, longitude = ? WHERE provider_id = ?',
+        [phone || profile.phone, address || profile.address, bio || profile.bio, businessHoursJson, 
+         latitude !== undefined ? latitude : profile.latitude, longitude !== undefined ? longitude : profile.longitude, providerId],
+        function(err) {
+          if (err) return res.status(500).json({ error: err.message });
+          
+          res.json({
+            id: profile.id,
+            provider_id: parseInt(providerId),
+            phone: phone || profile.phone,
+            address: address || profile.address,
+            bio: bio || profile.bio,
+            business_hours: businessHours || {},
+            latitude: latitude !== undefined ? latitude : profile.latitude,
+            longitude: longitude !== undefined ? longitude : profile.longitude
+          });
+        }
+      );
+    }
+  });
+});
+
+// Booking Routes
+
+// Create a new booking
+app.post('/api/bookings', (req, res) => {
+  const { pet_owner_id, service_id, pet_id, booking_date } = req.body;
+  
+  console.log('Creating new booking with data:', req.body);
+  
+  if (!pet_owner_id || !service_id || !pet_id || !booking_date) {
+    return res.status(400).json({ error: 'All booking details are required' });
+  }
+  
+  // First, get the service details to ensure we have the provider_id
+  db.get('SELECT * FROM services WHERE id = ?', [service_id], (err, service) => {
+    if (err) {
+      console.error('Error fetching service details:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    
+    if (!service) {
+      return res.status(404).json({ error: 'Service not found' });
+    }
+    
+    const provider_id = service.provider_id;
+    console.log(`Service ${service_id} is provided by provider ${provider_id}`);
+    
+    // Get pet details from database or mock data
+    let petDetails = null;
+    
+    // Check if we have this pet in our mock data
+    if (global.mockPets && global.mockPets.length > 0) {
+      petDetails = global.mockPets.find(p => p.id === parseInt(pet_id));
+    }
+    
+    // If not found in mock data, try to get from database
+    if (!petDetails) {
+      db.get('SELECT * FROM pets WHERE id = ?', [pet_id], (err, pet) => {
+        if (err) {
+          console.error('Error fetching pet details:', err.message);
+          // Continue with booking creation even if pet details can't be fetched
+        } else if (pet) {
+          petDetails = pet;
+        }
+        
+        // Now insert the booking
+        insertBooking();
+      });
+    } else {
+      // We already have pet details, proceed with booking creation
+      insertBooking();
+    }
+    
+    // Function to insert the booking
+    function insertBooking() {
+      db.run(
+        'INSERT INTO bookings (pet_owner_id, service_id, pet_id, booking_date, status) VALUES (?, ?, ?, ?, ?)',
+        [pet_owner_id, service_id, pet_id, booking_date, 'pending'],
+        function(err) {
+          if (err) {
+            console.error('Error creating booking:', err.message);
+            return res.status(500).json({ error: err.message });
+          }
+          
+          const bookingId = this.lastID;
+          console.log(`Created booking with ID ${bookingId}`);
+          
+          // Get complete booking details with joins to all relevant tables
+          db.get(
+            `SELECT 
+               b.id, b.pet_owner_id, b.service_id, b.pet_id, b.booking_date, b.status,
+               s.name as service_name, s.price, s.provider_id,
+               p.name as pet_name, p.type as pet_type, p.breed as pet_breed,
+               po.name as owner_name,
+               sp.name as provider_name
+             FROM bookings b
+             LEFT JOIN services s ON b.service_id = s.id
+             LEFT JOIN pets p ON b.pet_id = p.id
+             LEFT JOIN users po ON b.pet_owner_id = po.id
+             LEFT JOIN users sp ON s.provider_id = sp.id
+             WHERE b.id = ?`,
+            [bookingId],
+            (err, row) => {
+              if (err) {
+                console.error('Error getting complete booking details:', err.message);
+                // Even if this fails, we've created the booking, so return a successful response
+                return res.status(201).json({
+                  id: bookingId,
+                  pet_owner_id,
+                  service_id,
+                  pet_id,
+                  booking_date,
+                  status: 'pending',
+                  provider_id: provider_id,
+                  message: 'Booking created successfully!'
+                });
+              }
+              
+              let bookingDetails = row || {
+                id: bookingId,
+                pet_owner_id,
+                service_id,
+                pet_id,
+                booking_date,
+                status: 'pending',
+                service_name: service ? service.name : "Unknown Service",
+                price: service ? service.price : 0,
+                provider_id: provider_id,
+                provider_name: "Unknown Provider",
+                pet_name: "Unknown Pet",
+                pet_type: null,
+                pet_breed: null,
+                owner_name: "Unknown Owner"
+              };
+              
+              // If we have pet details but they're not in the database result, add them
+              if (petDetails && (!bookingDetails.pet_name || bookingDetails.pet_name === "Unknown Pet")) {
+                bookingDetails.pet_name = petDetails.name;
+                bookingDetails.pet_type = petDetails.type;
+                bookingDetails.pet_breed = petDetails.breed;
+              }
+              
+              console.log(`New booking details:`, bookingDetails);
+              
+              // Log the booking for demonstration
+              console.log(`New booking created: ${bookingDetails.owner_name} booked ${bookingDetails.service_name} with provider ${bookingDetails.provider_name}`);
+              
+              res.status(201).json({
+                ...bookingDetails,
+                message: 'Booking created successfully!'
+              });
+            }
+          );
+        }
+      );
+    }
+  });
+});
+
+// Get bookings for a pet owner
+app.get('/api/bookings/pet-owner/:id', (req, res) => {
+  const petOwnerId = req.params.id;
+  
+  console.log(`Fetching bookings for pet owner ID: ${petOwnerId}`);
+  
+  // First, get the bookings from the database
+  db.all(`
+    SELECT 
+      b.id, 
+      b.pet_owner_id, 
+      b.service_id, 
+      b.pet_id, 
+      b.booking_date, 
+      b.status,
+      b.payment_status,
+      b.stripe_session_id,
+      s.name as service_name, 
+      s.price, 
+      s.provider_id,
+      s.description as service_description,
+      p.name as pet_name,
+      p.type as pet_type,
+      p.breed as pet_breed,
+      u.name as provider_name,
+      u.email as provider_email
+    FROM bookings b
+    LEFT JOIN services s ON b.service_id = s.id
+    LEFT JOIN pets p ON b.pet_id = p.id
+    LEFT JOIN users u ON s.provider_id = u.id
+    WHERE b.pet_owner_id = ?
+    ORDER BY b.booking_date DESC
+  `, [petOwnerId], (err, rows) => {
+    if (err) {
+      console.error('Error fetching pet owner bookings:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    
+    console.log(`Found ${rows.length} bookings for pet owner ${petOwnerId}`);
+    
+    // Check if we need to supplement with mock pet data
+    if (rows.length > 0 && global.mockPets && global.mockPets.length > 0) {
+      rows = rows.map(booking => {
+        // If pet_name is null, try to find it in the mock pets
+        if (!booking.pet_name && booking.pet_id) {
+          const mockPet = global.mockPets.find(p => p.id === booking.pet_id);
+          if (mockPet) {
+            booking.pet_name = mockPet.name;
+            booking.pet_type = mockPet.type;
+            booking.pet_breed = mockPet.breed;
+          }
+        }
+        return booking;
+      });
+    }
+    
+    res.json(rows);
+  });
+});
+
+// Get bookings for a service provider
+app.get('/api/bookings/provider/:id', (req, res) => {
+  const providerId = req.params.id;
+  
+  console.log(`Fetching bookings for provider ID: ${providerId}`);
+  
+  // First, get the bookings from the database
+  db.all(`
+    SELECT 
+      b.id, 
+      b.pet_owner_id, 
+      b.service_id, 
+      b.pet_id, 
+      b.booking_date, 
+      b.status,
+      b.payment_status,
+      b.stripe_session_id,
+      s.name as service_name, 
+      s.price, 
+      s.provider_id,
+      p.name as pet_name, 
+      p.type as pet_type,
+      p.breed as pet_breed,
+      u.name as owner_name,
+      u.email as owner_email
+    FROM bookings b
+    JOIN services s ON b.service_id = s.id
+    LEFT JOIN pets p ON b.pet_id = p.id
+    LEFT JOIN users u ON b.pet_owner_id = u.id
+    WHERE s.provider_id = ?
+    ORDER BY b.booking_date DESC
+  `, [providerId], (err, rows) => {
+    if (err) {
+      console.error('Error fetching provider bookings:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    
+    console.log(`Found ${rows.length} bookings for provider ${providerId}`);
+    
+    // Check if we need to supplement with mock pet data
+    if (rows.length > 0 && global.mockPets && global.mockPets.length > 0) {
+      rows = rows.map(booking => {
+        // If pet_name is null, try to find it in the mock pets
+        if (!booking.pet_name && booking.pet_id) {
+          const mockPet = global.mockPets.find(p => p.id === booking.pet_id);
+          if (mockPet) {
+            booking.pet_name = mockPet.name;
+            booking.pet_type = mockPet.type;
+            booking.pet_breed = mockPet.breed;
+          }
+        }
+        return booking;
+      });
+    }
+    
+    res.json(rows);
+  });
+});
+
+// Update booking status
+app.put('/api/bookings/:id', (req, res) => {
+  const bookingId = req.params.id;
+  const { status } = req.body;
+  
+  console.log(`Updating booking ${bookingId} status to ${status}`);
+  
+  if (!status || !['pending', 'confirmed', 'cancelled', 'completed'].includes(status)) {
+    return res.status(400).json({ error: 'Valid status is required (pending, confirmed, cancelled, completed)' });
+  }
+  
+  // Check if this is an in-memory booking
+  if (global.mockBookings) {
+    const bookingIndex = global.mockBookings.findIndex(b => b.id == bookingId);
+    if (bookingIndex !== -1) {
+      // Update the status of the in-memory booking
+      global.mockBookings[bookingIndex].status = status;
+      return res.json({ 
+        id: bookingId, 
+        status,
+        message: `Booking status updated to ${status}`
+      });
+    }
+  }
+  
+  db.run(
+    'UPDATE bookings SET status = ? WHERE id = ?',
+    [status, bookingId],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      if (this.changes === 0) return res.status(404).json({ error: 'Booking not found' });
+      res.json({ id: bookingId, status });
+    }
+  );
+});
+
+// Delete booking
+app.delete('/api/bookings/:id', (req, res) => {
+  const bookingId = req.params.id;
+  
+  console.log(`Deleting booking with ID: ${bookingId}`);
+  
+  // First check if the booking exists in database
+  db.get('SELECT * FROM bookings WHERE id = ?', [bookingId], (err, booking) => {
+    if (err) {
+      console.error('Error checking booking existence:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    
+    if (booking) {
+      // Delete from database
+      db.run('DELETE FROM bookings WHERE id = ?', [bookingId], function(err) {
+        if (err) {
+          console.error('Error deleting booking from database:', err.message);
+          return res.status(500).json({ error: err.message });
+        }
+        
+        console.log(`Booking deleted from database: ID ${bookingId}`);
+        
+        // Also remove from memory if it exists
+        if (global.mockBookings) {
+          const bookingIndex = global.mockBookings.findIndex(b => b.id == bookingId);
+          if (bookingIndex !== -1) {
+            global.mockBookings.splice(bookingIndex, 1);
+            console.log(`Booking also removed from memory`);
+          }
+        }
+        
+        return res.json({
+          success: true,
+          message: `Booking with ID ${bookingId} deleted successfully`,
+          deletedBooking: booking
+        });
+      });
+    } else {
+      // Check if we have this booking in memory only
+      if (global.mockBookings) {
+        const bookingIndex = global.mockBookings.findIndex(b => b.id == bookingId);
+        if (bookingIndex !== -1) {
+          const memoryBooking = global.mockBookings[bookingIndex];
+          global.mockBookings.splice(bookingIndex, 1);
+          
+          console.log(`Booking deleted from memory: ID ${bookingId}`);
+          
+          return res.json({
+            success: true,
+            message: `Booking with ID ${bookingId} deleted successfully`,
+            deletedBooking: memoryBooking
+          });
+        }
+      }
+      
+      // Booking not found anywhere
+      console.log(`Booking with ID ${bookingId} not found`);
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+  });
+});
+
+// Payment API endpoint
+app.post('/api/payments', (req, res) => {
+  const { booking_id, amount } = req.body;
+  
+  if (!booking_id || !amount) {
+    return res.status(400).json({ error: 'Booking ID and amount are required' });
+  }
+  
+  // In a real app, this would integrate with a payment processor
+  // For now, we'll simulate a successful payment
+  
+  // Update booking status to completed
+  db.run(
+    'UPDATE bookings SET status = ? WHERE id = ?',
+    ['completed', booking_id],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      if (this.changes === 0) return res.status(404).json({ error: 'Booking not found' });
+      
+      res.json({ 
+        success: true, 
+        message: `Payment of $${amount} processed successfully for booking #${booking_id}`,
+        booking_id,
+        amount
+      });
+    }
+  );
+});
+
+// Get a single user by ID
+app.get('/api/users/:id', (req, res) => {
+  const userId = parseInt(req.params.id);
+  
+  if (isNaN(userId)) {
+    return res.status(400).json({ error: 'Invalid user ID' });
+  }
+  
+  
+  db.get('SELECT id, name, email, account_type FROM users WHERE id = ?', [userId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    if (!row) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json(row);
+  });
+});
+
+// Pet Location Tracking Routes
+// In-memory storage for pet location data
+let petLocationData = {
+  pet_id: 1,
+  latitude: 33.6844, // Default Islamabad coordinates
+  longitude: 73.0479,
+  timestamp: new Date().toISOString()
+};
+
+// Update pet location (for iPhone/GPS tracker)
+app.post('/api/update-pet-location', (req, res) => {
+  try {
+    const { pet_id, latitude, longitude } = req.body;
+    
+    // Validate required fields
+    if (!pet_id || !latitude || !longitude) {
+      return res.status(400).json({
+        error: 'Missing required fields: pet_id, latitude, longitude'
+      });
+    }
+
+    // Validate coordinate ranges
+    if (latitude < -90 || latitude > 90) {
+      return res.status(400).json({
+        error: 'Invalid latitude. Must be between -90 and 90'
+      });
+    }
+
+    if (longitude < -180 || longitude > 180) {
+      return res.status(400).json({
+        error: 'Invalid longitude. Must be between -180 and 180'
+      });
+    }
+
+    // Update the stored location data
+    petLocationData = {
+      pet_id: parseInt(pet_id),
+      latitude: parseFloat(latitude),
+      longitude: parseFloat(longitude),
+      timestamp: new Date().toISOString()
+    };
+
+    console.log('Pet location updated:', petLocationData);
+
+    // Broadcast the location update to all connected clients
+    console.log('📡 Broadcasting location update to', io.engine.clientsCount, 'connected clients');
+    io.emit('petLocationUpdate', {
+      latitude: petLocationData.latitude,
+      longitude: petLocationData.longitude,
+      timestamp: petLocationData.timestamp
+    });
+    console.log('✅ Broadcast sent successfully');
+
+    res.json({
+      success: true,
+      message: 'Location updated successfully',
+      data: petLocationData
+    });
+
+  } catch (error) {
+    console.error('Error updating pet location:', error);
+    res.status(400).json({ error: 'Invalid JSON data' });
+  }
+});
+
+// Get current pet location (for map display)
+app.get('/api/pet-location', (req, res) => {
+  res.json({
+    latitude: petLocationData.latitude,
+    longitude: petLocationData.longitude,
+    timestamp: petLocationData.timestamp
+  });
+});
+
+// Get all providers (users with account_type = 'serviceProvider')
+app.get('/api/providers', (req, res) => {
+  const { lat, lon, radius = 10 } = req.query;
+  
+  // Get all provider profiles (these are our actual providers)
+  let query = `SELECT 
+    pp.provider_id as id,
+    pp.provider_id as provider_id,
+    u.name,
+    u.email,
+    'serviceProvider' as account_type,
+    pp.phone,
+    pp.address,
+    pp.bio,
+    pp.business_hours,
+    pp.latitude,
+    pp.longitude
+    FROM provider_profiles pp
+    LEFT JOIN users u ON pp.provider_id = u.id`;
+  
+  db.all(query, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    // Filter out any invalid entries and ensure we have coordinates
+    let validProviders = rows.filter(provider => 
+      provider.latitude && provider.longitude
+    );
+    
+    // Apply location filtering if coordinates are provided
+    let filteredProviders = validProviders;
+    
+    if (lat && lon && radius) {
+      const userLat = parseFloat(lat);
+      const userLon = parseFloat(lon);
+      const radiusKm = parseFloat(radius);
+      
+      // Filter providers by distance using Haversine formula
+      filteredProviders = validProviders.filter(provider => {
+        const providerLat = parseFloat(provider.latitude);
+        const providerLon = parseFloat(provider.longitude);
+        
+        // Haversine formula to calculate distance
+        const R = 6371; // Earth's radius in kilometers
+        const dLat = (providerLat - userLat) * Math.PI / 180;
+        const dLon = (providerLon - userLon) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(userLat * Math.PI / 180) * Math.cos(providerLat * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const distance = R * c;
+        
+        return distance <= radiusKm;
+      });
+    }
+    
+    // Get services for these providers
+    db.all('SELECT DISTINCT provider_id FROM services', [], (err, serviceRows) => {
+      if (err) {
+        console.error('Error fetching service providers:', err.message);
+        return res.json(filteredProviders);
+      }
+      
+      // Only return providers who have services
+      const providerIdsWithServices = serviceRows.map(row => row.provider_id);
+      const finalProviders = filteredProviders.filter(provider => 
+        providerIdsWithServices.includes(provider.id)
+      );
+      
+      res.json(finalProviders);
+    });
+  });
+});
+
+// =============== CLINIC API ENDPOINTS ===============
+// Note: Clinics are now handled as providers - redirect to providers API
+
+// Redirect /api/clinics to /api/providers for backward compatibility
+app.get('/api/clinics', (req, res) => {
+  console.log('GET /api/clinics redirecting to providers API');
+  // Just redirect internally to the providers endpoint
+  req.url = '/api/providers';
+  return app._router.handle(req, res);
+});
+
+// Redirect clinic by ID to provider by ID
+app.get('/api/clinics/:id', (req, res) => {
+  const providerId = req.params.id;
+  console.log(`GET /api/clinics/${providerId} redirecting to provider API`);
+  
+  // Get provider data
+  db.get('SELECT u.*, pp.* FROM users u LEFT JOIN provider_profiles pp ON u.id = pp.provider_id WHERE u.id = ?', 
+    [providerId], (err, provider) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    
+    if (!provider) {
+      return res.status(404).json({ error: 'Provider not found' });
+    }
+    
+    // Get provider services
+    db.all('SELECT * FROM services WHERE provider_id = ?', [providerId], (err, services) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      
+      res.json({
+        clinic_id: provider.id,
+        name: provider.name,
+        address: provider.address,
+        latitude: provider.latitude,
+        longitude: provider.longitude,
+        contact_number: provider.phone,
+        bio: provider.bio,
+        services: services
+      });
+    });
+  });
+});
+
+// Helper to robustly resolve API key from multiple .env locations
+function resolveGeminiKey() {
+  if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
+  try { require('dotenv').config({ path: path.join(__dirname, '.env') }); } catch (_) {}
+  if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
+  try { require('dotenv').config({ path: path.join(process.cwd(), 'server', '.env') }); } catch (_) {}
+  if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
+  try { require('dotenv').config({ path: path.join(process.cwd(), '.env') }); } catch (_) {}
+  return process.env.GEMINI_API_KEY;
+}
+
+// Get provider profile by provider ID
+app.get('/api/provider-profile/:providerId', (req, res) => {
+  const { providerId } = req.params;
+  
+  db.get('SELECT * FROM provider_profiles WHERE provider_id = ?', [providerId], (err, profile) => {
+    if (err) {
+      console.error('Error fetching provider profile:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    
+    if (!profile) {
+      return res.status(404).json({ error: 'Provider profile not found' });
+    }
+    
+    res.json(profile);
+  });
+});
+
+// In-memory chat history storage (per session)
+const chatHistories = new Map();
+
+// AI Chatbot Route using Google Gemini
+app.post('/api/chatbot', async (req, res) => {
+  try {
+    const { message, sessionId } = req.body || {};
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ error: 'Request body must include a string "message"' });
+    }
+
+    // Use sessionId or create a default one
+    const currentSessionId = sessionId || 'default-session';
+    
+    // Get or initialize chat history for this session
+    if (!chatHistories.has(currentSessionId)) {
+      chatHistories.set(currentSessionId, []);
+    }
+    const chatHistory = chatHistories.get(currentSessionId);
+
+    const apiKey = resolveGeminiKey();
+    if (!apiKey) {
+      console.error('GEMINI_API_KEY is not set (env not loaded)');
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
+
+    // Fetch real data from database to provide context
+    const fetchDatabaseContext = () => {
+      return new Promise((resolve) => {
+        let contextData = {
+          providers: [],
+          services: [],
+          recentBookings: []
+        };
+        
+        // Get service providers with their profiles
+        db.all(`
+          SELECT u.name, pp.address, pp.business_hours, pp.phone 
+          FROM users u 
+          LEFT JOIN provider_profiles pp ON u.id = pp.provider_id 
+          WHERE u.account_type = 'serviceProvider' 
+          LIMIT 5
+        `, (err, providers) => {
+          if (!err && providers) {
+            contextData.providers = providers;
+          }
+          
+          // Get available services
+          db.all(`
+            SELECT s.name, s.description, s.price, u.name as provider_name, pp.address
+            FROM services s 
+            JOIN users u ON s.provider_id = u.id 
+            LEFT JOIN provider_profiles pp ON u.id = pp.provider_id
+            LIMIT 8
+          `, (err, services) => {
+            if (!err && services) {
+              contextData.services = services;
+            }
+            
+            // Get recent booking stats
+            db.all(`
+              SELECT COUNT(*) as total_bookings, 
+                     COUNT(CASE WHEN status = 'confirmed' THEN 1 END) as confirmed_bookings
+              FROM bookings
+            `, (err, bookingStats) => {
+              if (!err && bookingStats) {
+                contextData.bookingStats = bookingStats[0];
+              }
+              resolve(contextData);
+            });
+          });
+        });
+      });
+    };
+
+    // Fetch database context
+    const dbContext = await fetchDatabaseContext();
+    
+    // Debug: Log the context data
+    console.log('Database context fetched:', JSON.stringify(dbContext, null, 2));
+    
+    // Build context text from real data
+    let contextText = "\n\nCurrent PetCareHub Data:\n";
+    
+    // Add providers/clinics info
+    if (dbContext.providers.length > 0) {
+      contextText += "\nAvailable Service Providers:\n";
+      dbContext.providers.forEach((provider, index) => {
+        const address = provider.address || 'Location not specified';
+        let hours = 'Contact for hours';
+        
+        // Parse business hours if available
+        if (provider.business_hours) {
+          try {
+            const hoursData = JSON.parse(provider.business_hours);
+            const openDays = [];
+            
+            Object.entries(hoursData).forEach(([day, schedule]) => {
+              if (schedule.isOpen) {
+                openDays.push(`${day.charAt(0).toUpperCase() + day.slice(1)}: ${schedule.open}-${schedule.close}`);
+              }
+            });
+            
+            if (openDays.length > 0) {
+              hours = openDays.join(', ');
+            }
+          } catch (e) {
+            hours = 'Business hours available';
+          }
+        }
+        
+        contextText += `${index + 1}. ${provider.name} - ${address} (${hours})\n`;
+      });
+    }
+    
+    // Add services info
+    if (dbContext.services.length > 0) {
+      contextText += "\nAvailable Services:\n";
+      dbContext.services.forEach((service, index) => {
+        const location = service.address || 'Various locations';
+        contextText += `${index + 1}. ${service.name} by ${service.provider_name} - $${service.price} (${location})\n`;
+      });
+    }
+    
+    // Add booking stats
+    if (dbContext.bookingStats) {
+      contextText += `\nPlatform Stats: ${dbContext.bookingStats.total_bookings} total bookings, ${dbContext.bookingStats.confirmed_bookings} confirmed\n`;
+    }
+
+    console.log('Context text built:', contextText);
+
+    // System instruction for PetCareHub context
+    const systemPrompt = `You are PetCareHub AI Assistant. 
+
+${contextText}
+
+CRITICAL INSTRUCTIONS: 
+- When users ask about nail cutting prices, you MUST answer: "Nail Cutting by aman sheikh costs ₨2,200"
+- When users ask about dental services, you MUST answer: "dental by azfar murtaza costs ₨1,100" 
+- When users ask about grooming, you MUST answer: "tail grooming by bezi rufus costs ₨1,000"
+- Always reference the EXACT provider names and prices from the data above
+- DO NOT give generic answers - use the specific data provided
+
+You help users with:
+- Tracking their pets using GPS
+- Finding nearby clinics and booking services  
+- Answering FAQs about pets and pet care
+- Guiding users about our platform features
+
+IMPORTANT SAFETY AND BEHAVIOR RULES:
+- Do NOT provide medical diagnoses or specific medical advice
+- Always recommend visiting a veterinarian for serious health issues or concerns
+- Keep answers friendly, short, and directly related to PetCareHub services
+- Never answer questions unrelated to pets, clinics, or services - redirect politely back to PetCareHub topics
+- If asked about non-pet topics, respond: "I'm here to help with pet care and PetCareHub services. How can I assist you with your pet's needs today?"
+
+Always use the real data provided in your context when answering questions about our platform.`;
+
+    // Add current user message to history
+    chatHistory.push({ role: 'user', content: message });
+
+    // Keep only last 5 messages (10 total including responses)
+    if (chatHistory.length > 10) {
+      chatHistory.splice(0, chatHistory.length - 10);
+    }
+
+    // Build conversation history for Gemini
+    let conversationHistory = systemPrompt + "\n\nConversation History:\n";
+    chatHistory.forEach((msg, index) => {
+      if (index < chatHistory.length - 1) { // Don't include the current message yet
+        conversationHistory += `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}\n`;
+      }
+    });
+    conversationHistory += `\nUser: ${message}`;
+
+    let reply = '';
+    try {
+      // Use new Google GenAI SDK
+      const { GoogleGenAI } = await import('@google/genai');
+      const ai = new GoogleGenAI({});
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: conversationHistory,
+      });
+      reply = response.text || '';
+    } catch (sdkErr) {
+      console.warn('SDK call failed, falling back to REST:', sdkErr?.message || sdkErr);
+      // Fallback to REST API (avoids ESM/runtime issues)
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+      const restRes = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: conversationHistory }] }]
+        })
+      });
+      if (!restRes.ok) {
+        const errText = await restRes.text().catch(() => '');
+        throw new Error(errText || `HTTP ${restRes.status}`);
+      }
+      const restJson = await restRes.json();
+      reply = restJson?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    }
+
+    // Add assistant response to history
+    chatHistory.push({ role: 'assistant', content: reply });
+
+    // Keep only last 5 user-assistant pairs (10 messages total)
+    if (chatHistory.length > 10) {
+      chatHistory.splice(0, chatHistory.length - 10);
+    }
+
+    // Update the stored history
+    chatHistories.set(currentSessionId, chatHistory);
+
+    console.log(`Chat history for session ${currentSessionId}:`, chatHistory.length, 'messages');
+
+    return res.json({ reply: reply || "", sessionId: currentSessionId });
+  } catch (err) {
+    console.error('Error in /api/chatbot:', err?.message || err);
+    // Return graceful fallback so UI keeps working
+    return res.json({ 
+      reply: "I'm having trouble reaching the AI right now. Please try again shortly.",
+      error: err?.message || 'Failed to get response from AI'
+    });
+  }
+});
+
+// =============== DISEASE PREDICTION API ===============
+
+// Create disease predictions table
+db.run(`CREATE TABLE IF NOT EXISTS disease_predictions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  date DATETIME DEFAULT CURRENT_TIMESTAMP,
+  symptoms TEXT NOT NULL,
+  predictions TEXT NOT NULL,
+  animal_type TEXT,
+  age INTEGER,
+  weight REAL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users (id)
+)`, (err) => {
+  if (err) {
+    console.error('Error creating disease_predictions table:', err.message);
+  } else {
+    console.log('Disease predictions table ensured');
+  }
+});
+
+// Disease prediction endpoint
+app.post('/api/predict-disease', (req, res) => {
+  const { symptoms, animal_type, age, weight, gender, breed } = req.body;
+  
+  // Get user ID from session/auth (you may need to adjust this based on your auth system)
+  const userId = req.body.user_id || req.user?.id || 1; // Fallback to user ID 1 for testing
+  
+  // Validate input
+  if (!symptoms || !Array.isArray(symptoms) || symptoms.length === 0) {
+    return res.status(400).json({
+      error: 'Symptoms array is required and must not be empty',
+      predictions: []
+    });
+  }
+
+  console.log('Disease prediction request:', {
+    symptoms,
+    animal_type,
+    userId,
+    timestamp: new Date().toISOString()
+  });
+
+  // Import required modules for child process
+  const { spawn } = require('child_process');
+
+  const inputData = {
+    symptoms,
+    animal_type: animal_type || 'Dog',
+    age: age || 3,
+    weight: weight || 20.0,
+    gender: gender || 'Male',
+    breed: breed || 'Mixed'
+  };
+
+  try {
+    // Spawn Python process
+    const pythonProcess = spawn('python3', ['api_predict.py'], {
+      cwd: `${__dirname}/../ml_models`,
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+
+    let outputData = '';
+    let errorData = '';
+
+    // Send input data to Python script
+    pythonProcess.stdin.write(JSON.stringify(inputData));
+    pythonProcess.stdin.end();
+
+    // Collect output
+    pythonProcess.stdout.on('data', (data) => {
+      outputData += data.toString();
+    });
+
+    pythonProcess.stderr.on('data', (data) => {
+      errorData += data.toString();
+    });
+
+    // Handle process completion
+    pythonProcess.on('close', (code) => {
+      if (code !== 0) {
+        console.error('Python script error:', errorData);
+        return res.status(500).json({
+          error: 'Disease prediction failed',
+          details: errorData,
+          predictions: []
+        });
+      }
+
+      try {
+        // Parse Python output
+        const predictionResult = JSON.parse(outputData.trim());
+        
+        if (predictionResult.error) {
+          console.error('Prediction error:', predictionResult.error);
+          return res.status(500).json(predictionResult);
+        }
+
+        // Save prediction to database
+        const symptomsJson = JSON.stringify(symptoms);
+        const predictionsJson = JSON.stringify(predictionResult.predictions);
+        
+        db.run(`INSERT INTO disease_predictions 
+                (user_id, symptoms, predictions, animal_type, age, weight) 
+                VALUES (?, ?, ?, ?, ?, ?)`,
+          [userId, symptomsJson, predictionsJson, animal_type, age, weight],
+          function(err) {
+            if (err) {
+              console.error('Error saving prediction to database:', err.message);
+              // Still return the prediction even if DB save fails
+            } else {
+              console.log('Disease prediction saved with ID:', this.lastID);
+            }
+          }
+        );
+
+        // Return successful prediction
+        res.json({
+          ...predictionResult,
+          saved: true,
+          timestamp: new Date().toISOString()
+        });
+
+      } catch (parseError) {
+        console.error('Error parsing Python output:', parseError);
+        console.error('Raw output:', outputData);
+        res.status(500).json({
+          error: 'Failed to parse prediction results',
+          details: parseError.message,
+          predictions: []
+        });
+      }
+    });
+
+    // Handle process errors
+    pythonProcess.on('error', (error) => {
+      console.error('Failed to start Python process:', error);
+      res.status(500).json({
+        error: 'Failed to start disease prediction service',
+        details: error.message,
+        predictions: []
+      });
+    });
+
+  } catch (error) {
+    console.error('Error in disease prediction:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      details: error.message,
+      predictions: []
+    });
+  }
+});
+
+// Get user's disease prediction history
+app.get('/api/disease-predictions/:userId', (req, res) => {
+  const userId = req.params.userId;
+  
+  db.all(`SELECT id, date, symptoms, predictions, animal_type, age, weight, created_at 
+          FROM disease_predictions 
+          WHERE user_id = ? 
+          ORDER BY created_at DESC 
+          LIMIT 50`,
+    [userId],
+    (err, rows) => {
+      if (err) {
+        console.error('Error fetching disease predictions:', err.message);
+        return res.status(500).json({ error: 'Failed to fetch prediction history' });
+      }
+      
+      // Parse JSON strings back to objects
+      const predictions = rows.map(row => ({
+        ...row,
+        symptoms: JSON.parse(row.symptoms),
+        predictions: JSON.parse(row.predictions)
+      }));
+      
+      res.json(predictions);
+    }
+  );
+});
+
+// Get disease prediction statistics
+app.get('/api/disease-stats/:userId', (req, res) => {
+  const userId = req.params.userId;
+  
+  db.all(`SELECT 
+            COUNT(*) as total_predictions,
+            COUNT(DISTINCT DATE(created_at)) as prediction_days,
+            animal_type,
+            COUNT(*) as count
+          FROM disease_predictions 
+          WHERE user_id = ?
+          GROUP BY animal_type`,
+    [userId],
+    (err, rows) => {
+      if (err) {
+        console.error('Error fetching disease stats:', err.message);
+        return res.status(500).json({ error: 'Failed to fetch statistics' });
+      }
+      
+      // Calculate total predictions
+      const totalPredictions = rows.reduce((sum, row) => sum + row.count, 0);
+      
+      res.json({
+        total_predictions: totalPredictions,
+        by_animal_type: rows,
+        last_updated: new Date().toISOString()
+      });
+    }
+  );
+});
+
+// Serve React static files
+app.use(express.static(path.join(__dirname, '../build')));
+
+// Fallback to React for any other route
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../build', 'index.html'));
+});
+
+server.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Socket.IO enabled for real-time pet tracking`);
+}); 
