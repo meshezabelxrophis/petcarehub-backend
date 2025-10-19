@@ -1634,6 +1634,15 @@ app.get('/', (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`Socket.IO enabled for real-time pet tracking`);
+  
+  // Start ML Keep-Alive service if ML_API_URL is configured
+  if (process.env.ML_API_URL) {
+    console.log(`\n🧠 Starting ML Keep-Alive service for: ${process.env.ML_API_URL}`);
+    const { startKeepAlive } = require('./keep-ml-alive');
+    startKeepAlive();
+  } else {
+    console.log('⚠️  ML_API_URL not configured - ML Keep-Alive service disabled');
+  }
 }); 
