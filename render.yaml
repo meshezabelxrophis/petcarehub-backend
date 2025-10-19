@@ -1,10 +1,11 @@
 services:
+  # Backend API Server
   - type: web
     name: petcarehub-backend
     runtime: node
     plan: free
     rootDir: server
-    buildCommand: npm install
+    buildCommand: npm ci
     startCommand: node index.js
     envVars:
       - key: NODE_ENV
@@ -13,8 +14,8 @@ services:
         value: 10000
       # Add these in Render Dashboard manually:
       # - FIREBASE_PROJECT_ID
-      # - FIREBASE_CLIENT_EMAIL
-      # - FIREBASE_PRIVATE_KEY (paste the entire private key)
+      # - FIREBASE_CLIENT_EMAIL  
+      # - FIREBASE_PRIVATE_KEY (paste the entire private key, keep quotes)
       # - FIREBASE_DATABASE_URL
       # - STRIPE_SECRET_KEY
       # - GEMINI_API_KEY
