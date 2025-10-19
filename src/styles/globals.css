@@ -58,6 +58,45 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background-color: white;
   color: black;
+  overflow-x: hidden; /* Prevent horizontal scroll */
+}
+
+/* Mobile-friendly container */
+.container {
+  width: 100%;
+  max-width: 100%;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+/* Ensure images are responsive */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Fix for mobile viewport height */
+.min-h-screen {
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+}
+
+/* Improve touch targets on mobile */
+@media (max-width: 768px) {
+  button,
+  a {
+    min-height: 44px; /* iOS recommended touch target size */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 
 /* PageLoader animations */
@@ -86,5 +125,55 @@ body {
   .paw-icon,
   .loader-fallback {
     animation: none !important;
+  }
+}
+
+/* Leaflet Map Mobile Responsiveness */
+.leaflet-container {
+  height: 400px !important;
+  width: 100% !important;
+  border-radius: 0.5rem;
+  z-index: 1;
+}
+
+@media (min-width: 640px) {
+  .leaflet-container {
+    height: 500px !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .leaflet-container {
+    height: 600px !important;
+  }
+}
+
+/* Mobile Menu Animation */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mobile-menu-enter {
+  animation: slideDown 0.2s ease-out;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Fix dropdown z-index issues on mobile */
+@media (max-width: 1024px) {
+  .relative > div[class*="absolute"] {
+    position: fixed !important;
+    right: 1rem !important;
+    left: auto !important;
   }
 } 

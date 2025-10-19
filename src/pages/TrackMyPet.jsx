@@ -91,92 +91,94 @@ function TrackMyPet() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center">
-          <MapPin size={32} className="mr-3 text-teal-600" />
-          Track My Pet
-        </h1>
-        <p className="text-gray-600">
-          Monitor your pet's real-time location with our smart collar GPS tracking system
-        </p>
-      </div>
-
-      {/* Pet Selection */}
-      <div className="mb-8 bg-white rounded-lg shadow-sm p-6">
-        <label className="block text-sm font-medium text-gray-700 mb-3">
-          Select Pet to Track:
-        </label>
-        <div className="flex items-center space-x-4">
-          <select
-            value={selectedPet?.id || ''}
-            onChange={handlePetChange}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-          >
-            {pets.map(pet => (
-              <option key={pet.id} value={pet.id}>
-                {pet.name} ({pet.type}) {pet.breed && `- ${pet.breed}`}
-              </option>
-            ))}
-          </select>
-          {selectedPet && (
-            <div className="flex items-center space-x-2 text-sm text-gray-600">
-              <span className="bg-teal-100 text-teal-800 px-2 py-1 rounded">
-                {selectedPet.type}
-              </span>
-              {selectedPet.age && (
-                <span className="text-gray-500">{selectedPet.age} years old</span>
-              )}
-            </div>
-          )}
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 lg:py-8 max-w-7xl">
+        {/* Header */}
+        <div className="mb-4 sm:mb-6 lg:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 flex items-center">
+            <MapPin size={24} className="mr-2 sm:mr-3 text-teal-600 sm:w-8 sm:h-8" />
+            Track My Pet
+          </h1>
+          <p className="text-sm sm:text-base text-gray-600">
+            Monitor your pet's real-time location with our smart collar GPS tracking system
+          </p>
         </div>
-      </div>
 
-      {/* GPS Tracking Map */}
-      {selectedPet && (
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-r from-teal-600 to-teal-700 text-white p-6">
-            <h2 className="text-2xl font-bold mb-2">
-              🐾 {selectedPet.name}'s Live Location
-            </h2>
-            <p className="text-teal-100">
-              Real-time GPS tracking • Updates every few seconds
-            </p>
-          </div>
-          
-          <div className="p-6">
-            <PetMap petId={selectedPet.id} petName={selectedPet.name} />
-          </div>
-          
-          {/* Pet Info */}
-          <div className="border-t border-gray-100 p-6 bg-gray-50">
-            <h3 className="font-semibold text-gray-900 mb-3">Pet Information</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <span className="text-gray-500">Name:</span>
-                <p className="font-medium">{selectedPet.name}</p>
+        {/* Pet Selection */}
+        <div className="mb-4 sm:mb-6 lg:mb-8 bg-white rounded-lg shadow-sm p-4 sm:p-6">
+          <label className="block text-sm font-medium text-gray-700 mb-3">
+            Select Pet to Track:
+          </label>
+          <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
+            <select
+              value={selectedPet?.id || ''}
+              onChange={handlePetChange}
+              className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+            >
+              {pets.map(pet => (
+                <option key={pet.id} value={pet.id}>
+                  {pet.name} ({pet.type}) {pet.breed && `- ${pet.breed}`}
+                </option>
+              ))}
+            </select>
+            {selectedPet && (
+              <div className="flex items-center space-x-2 text-xs sm:text-sm text-gray-600">
+                <span className="bg-teal-100 text-teal-800 px-2 py-1 rounded text-xs sm:text-sm">
+                  {selectedPet.type}
+                </span>
+                {selectedPet.age && (
+                  <span className="text-gray-500">{selectedPet.age} years old</span>
+                )}
               </div>
-              <div>
-                <span className="text-gray-500">Type:</span>
-                <p className="font-medium">{selectedPet.type}</p>
-              </div>
-              {selectedPet.breed && (
-                <div>
-                  <span className="text-gray-500">Breed:</span>
-                  <p className="font-medium">{selectedPet.breed}</p>
-                </div>
-              )}
-              {selectedPet.age && (
-                <div>
-                  <span className="text-gray-500">Age:</span>
-                  <p className="font-medium">{selectedPet.age} years</p>
-                </div>
-              )}
-            </div>
+            )}
           </div>
         </div>
-      )}
+
+        {/* GPS Tracking Map */}
+        {selectedPet && (
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-teal-600 to-teal-700 text-white p-4 sm:p-6">
+              <h2 className="text-xl sm:text-2xl font-bold mb-2">
+                🐾 {selectedPet.name}'s Live Location
+              </h2>
+              <p className="text-sm sm:text-base text-teal-100">
+                Real-time GPS tracking • Updates every few seconds
+              </p>
+            </div>
+            
+            <div className="p-2 sm:p-4 lg:p-6">
+              <PetMap petId={selectedPet.id} petName={selectedPet.name} />
+            </div>
+            
+            {/* Pet Info */}
+            <div className="border-t border-gray-100 p-4 sm:p-6 bg-gray-50">
+              <h3 className="font-semibold text-gray-900 mb-3 text-sm sm:text-base">Pet Information</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 text-sm">
+                <div>
+                  <span className="text-gray-500 text-xs sm:text-sm">Name:</span>
+                  <p className="font-medium text-sm sm:text-base">{selectedPet.name}</p>
+                </div>
+                <div>
+                  <span className="text-gray-500 text-xs sm:text-sm">Type:</span>
+                  <p className="font-medium text-sm sm:text-base">{selectedPet.type}</p>
+                </div>
+                {selectedPet.breed && (
+                  <div>
+                    <span className="text-gray-500 text-xs sm:text-sm">Breed:</span>
+                    <p className="font-medium text-sm sm:text-base">{selectedPet.breed}</p>
+                  </div>
+                )}
+                {selectedPet.age && (
+                  <div>
+                    <span className="text-gray-500 text-xs sm:text-sm">Age:</span>
+                    <p className="font-medium text-sm sm:text-base">{selectedPet.age} years</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
