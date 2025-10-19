@@ -1,0 +1,98 @@
+═══════════════════════════════════════════════════════════════════════════════
+                         PETCAREHUB ARCHITECTURE
+═══════════════════════════════════════════════════════════════════════════════
+
+                              ┌─────────────────────┐
+                              │   REACT FRONTEND    │
+                              │ (Firebase Hosting)  │
+                              └──────────┬──────────┘
+                                         │
+                    ┌────────────────────┼────────────────────┐
+                    │                    │                    │
+                    ▼                    ▼                    ▼
+         ┌──────────────────┐  ┌────────────────┐  ┌────────────────┐
+         │  FIREBASE DIRECT │  │ VERCEL BACKEND │  │  UI COMPONENTS │
+         │                  │  │   (HTTPS+Auth) │  │                │
+         └──────────────────┘  └────────────────┘  └────────────────┘
+                   │                     │
+    ┌──────────────┼────────────┐       │
+    ▼              ▼            ▼       │
+┌───────┐  ┌─────────────┐  ┌─────┐    │
+│ Auth  │  │  Firestore  │  │ RTD │    │
+│       │  │             │  │     │    │
+│Login/ │  │• Users      │  │• GPS│    │
+│Signup │  │• Bookings   │  │• Chat│   │
+│Logout │  │• Pets       │  │     │    │
+└───────┘  │• Services   │  └─────┘    │
+           │• Providers  │              │
+           └─────────────┘              │
+                   │                     │
+                   ▼                     │
+           ┌─────────────┐              │
+           │   Cloud     │              │
+           │  Functions  │              │
+           │             │              │
+           │• Triggers   │              │
+           │• Notify     │              │
+           └─────────────┘              │
+                                        │
+                        ┌───────────────┼───────────────┐
+                        ▼               ▼               ▼
+                   ┌────────┐     ┌──────────┐    ┌────────┐
+                   │ STRIPE │     │  GEMINI  │    │ Store  │
+                   │        │     │    AI    │    │   to   │
+                   │Payment │     │          │    │Firestore│
+                   │Process │     │• Chat    │    │        │
+                   └────────┘     │• Vision  │    └────────┘
+                                  └──────────┘
+                                        │
+                                        ▼
+                                  (Returns to
+                                   Firestore)
+
+═══════════════════════════════════════════════════════════════════════════════
+                                DATA FLOW
+═══════════════════════════════════════════════════════════════════════════════
+
+1. AUTHENTICATION:
+   User → Firebase Auth → User authenticated → Token generated
+
+2. BOOKING & USER DATA:
+   Frontend → Firestore (direct) → Data stored/retrieved
+
+3. PAYMENT:
+   Frontend → Vercel API (+ Auth token) → Stripe → Payment processed
+                  ↓
+            Update Firestore
+
+4. AI CHAT:
+   Frontend → Vercel API (+ Auth token) → Gemini → AI response
+                  ↓
+            Store in Firestore
+
+5. IMAGE ANALYSIS:
+   Frontend → Vercel API (+ Auth token) → Gemini Vision → Analysis result
+                  ↓
+            Store in Firestore
+
+6. GPS TRACKING:
+   Frontend → Realtime DB (direct) → Location updated → Real-time sync
+
+7. CHAT:
+   Frontend → Realtime DB (direct) → Message sent → Real-time sync
+
+8. NOTIFICATIONS:
+   Firestore change → Cloud Function triggered → Notification sent → User
+
+═══════════════════════════════════════════════════════════════════════════════
+                           SECURITY MODEL
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ Firebase Auth tokens secure all Vercel API calls
+✅ Firestore rules protect user data
+✅ Realtime DB rules protect GPS and chat data
+✅ API keys never exposed to frontend
+✅ CORS configured for your domain only
+✅ HTTPS enforced everywhere
+
+═══════════════════════════════════════════════════════════════════════════════

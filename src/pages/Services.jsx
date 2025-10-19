@@ -1,215 +1,118 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import { ChevronRight } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Search } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "../context/AuthContext";
+import CheckoutButton from "../components/CheckoutButton";
+import { getAllServices, getUserProfile } from "../services/firestoreService";
 
 function Services() {
-  const [showResults, setShowResults] = useState(false);
-  const [searchResults, setSearchResults] = useState([]);
-  
-  // Sample service categories
-  const serviceCategories = [
-    { 
-      id: 1, 
-      name: "Pet Grooming", 
-      description: "Professional grooming services to keep your pet looking and feeling their best.",
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"></path>
-        </svg>
-      ),
-      count: 24,
-      path: "/services/pet-grooming"
-    },
-    { 
-      id: 2, 
-      name: "Veterinary Care", 
-      description: "Connect with qualified veterinarians for check-ups, vaccinations, and treatments.",
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path>
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4"></path>
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 12a6 6 0 01-6 6 6 6 0 01-6-6 6 6 0 0112 0z"></path>
-        </svg>
-      ),
-      count: 18,
-      path: "/services/veterinary-care"
-    },
-    { 
-      id: 3, 
-      name: "Pet Training", 
-      description: "Expert trainers to help with obedience, behavior modification, and specialized skills.",
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"></path>
-        </svg>
-      ),
-      count: 12,
-      path: "/services/pet-training"
-    },
-    { 
-      id: 4, 
-      name: "Pet Sitting", 
-      description: "Reliable pet sitters to care for your pets when you're away from home.",
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
-        </svg>
-      ),
-      count: 15,
-      path: "/services/pet-sitting"
-    },
-    { 
-      id: 5, 
-      name: "Dog Walking", 
-      description: "Regular exercise and outdoor activities for your canine companions.",
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-        </svg>
-      ),
-      count: 20,
-      path: "/services/dog-walking"
-    },
-    { 
-      id: 6, 
-      name: "Pet Boarding", 
-      description: "Safe and comfortable accommodation for your pets during your absence.",
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
-        </svg>
-      ),
-      count: 9,
-      path: "/services/pet-boarding"
-    },
-  ];
+  const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const [services, setServices] = useState([]);
+  const [providers, setProviders] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filteredServices, setFilteredServices] = useState([]);
 
-  // Combined service listings for search
-  const allServices = [
-    // Pet Grooming
-    {
-      id: 101,
-      title: "Full Grooming Package",
-      provider: "PawPerfect Salon",
-      category: "Pet Grooming",
-      location: "New York, NY",
-      rating: 4.8,
-      reviews: 124,
-      image: "/placeholder.svg",
-      price: "$60",
-      description: "Complete grooming service including bath, haircut, nail trimming, ear cleaning, and more.",
-      searchTerms: ["grooming", "pet grooming", "groomer", "pet care"]
+  // Animation variants for service cards (same as pet cards)
+  const containerVariants = {
+    hidden: { opacity: 1 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  };
+
+  const cardVariants = {
+    hidden: { 
+      opacity: 0, 
+      y: 14, 
+      scale: 0.985 
     },
-    {
-      id: 102,
-      title: "Bath & Brush",
-      provider: "Clean Pets Co.",
-      category: "Pet Grooming",
-      location: "Boston, MA",
-      rating: 4.6,
-      reviews: 98,
-      image: "/placeholder.svg",
-      price: "$40",
-      description: "Basic cleaning service with shampoo, conditioning, and brush out.",
-      searchTerms: ["bath", "brush", "cleaning", "pet care"]
+    visible: { 
+      opacity: 1, 
+      y: 0, 
+      scale: 1,
+      transition: {
+        type: "spring",
+        stiffness: 110,
+        damping: 14
+      }
     },
-    // Veterinary Care
-    {
-      id: 201,
-      title: "Annual Check-up",
-      provider: "PetHealth Clinic",
-      category: "Veterinary Care",
-      location: "Chicago, IL",
-      rating: 4.9,
-      reviews: 218,
-      image: "/placeholder.svg",
-      price: "$85",
-      description: "Comprehensive annual health examination including vaccinations and health assessment.",
-      searchTerms: ["annual checkup", "yearly checkup", "annual exam", "yearly exam", "pet exam", "pet checkup", "health exam", "wellness exam", "preventive care"]
-    },
-    {
-      id: 202,
-      title: "Dental Cleaning",
-      provider: "Advanced Vet Care",
-      category: "Veterinary Care",
-      location: "Miami, FL",
-      rating: 4.7,
-      reviews: 143,
-      image: "/placeholder.svg",
-      price: "$150",
-      description: "Professional dental cleaning to maintain your pet's oral health.",
-      searchTerms: ["dental", "cleaning", "veterinary", "pet care"]
-    },
-    // Pet Training
-    {
-      id: 301,
-      title: "Basic Obedience Training",
-      provider: "Good Boy Academy",
-      category: "Pet Training",
-      location: "Seattle, WA",
-      rating: 4.7,
-      reviews: 86,
-      image: "/placeholder.svg",
-      price: "$35/session",
-      description: "Learn essential commands and establish good behavior patterns for your dog.",
-      searchTerms: ["obedience", "training", "pet training", "dog training"]
-    },
-    {
-      id: 302,
-      title: "Puppy Socialization",
-      provider: "Paws & Train",
-      category: "Pet Training",
-      location: "Denver, CO",
-      rating: 4.8,
-      reviews: 92,
-      image: "/placeholder.svg",
-      price: "$30/session",
-      description: "Help your puppy develop social skills with other dogs and people in a safe environment.",
-      searchTerms: ["socialization", "puppy training", "dog training", "pet training"]
-    },
-    // Pet Sitting
-    {
-      id: 401,
-      title: "Daily Home Visits",
-      provider: "TrustedSitters",
-      category: "Pet Sitting",
-      location: "Austin, TX",
-      rating: 4.6,
-      reviews: 108,
-      image: "/placeholder.svg",
-      price: "$25/visit",
-      description: "Regular home visits to feed, play with, and care for your pet while you're away.",
-      searchTerms: ["pet sitting", "pet care", "home visits", "dog sitting"]
-    },
-    // Dog Walking
-    {
-      id: 501,
-      title: "30-Min Walk",
-      provider: "Daily Walkers",
-      category: "Dog Walking",
-      location: "Portland, OR",
-      rating: 4.7,
-      reviews: 156,
-      image: "/placeholder.svg",
-      price: "$15",
-      description: "Standard 30-minute walk for your dog, including pickup and drop-off at your home.",
-      searchTerms: ["dog walking", "walking", "pet walking", "dog care"]
-    },
-    // Pet Boarding
-    {
-      id: 601,
-      title: "Luxury Pet Resort Stay",
-      provider: "PetParadise",
-      category: "Pet Boarding",
-      location: "San Diego, CA",
-      rating: 4.8,
-      reviews: 178,
-      image: "/placeholder.svg",
-      price: "$65/night",
-      description: "Premium boarding with private suites, playtime, grooming, and 24/7 care.",
-      searchTerms: ["pet boarding", "boarding", "pet care", "dog care"]
-    },
-  ];
+    exit: { 
+      opacity: 0, 
+      scale: 0.98,
+      transition: {
+        duration: 0.2
+      }
+    }
+  };
+
+  useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        setLoading(true);
+        setError("");
+        
+        // Fetch all services directly from Firestore
+        const allServices = await getAllServices();
+        
+        // Fetch provider details for each service
+        const providerMap = {};
+        const uniqueProviderIds = [...new Set(allServices.map(service => service.providerId))];
+        
+        for (const providerId of uniqueProviderIds) {
+          try {
+            const providerData = await getUserProfile(providerId);
+            // Only add if it's a service provider
+            if (providerData && providerData.accountType === 'serviceProvider') {
+              providerMap[providerId] = providerData;
+            }
+          } catch (err) {
+            console.error(`Error fetching provider ${providerId}:`, err);
+          }
+        }
+        
+        setServices(allServices);
+        setProviders(providerMap);
+        setFilteredServices(allServices);
+      } catch (err) {
+        console.error('Error fetching services:', err);
+        setError('Failed to load services. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchServices();
+  }, []);
+  
+  useEffect(() => {
+    if (searchTerm.trim() === '') {
+      setFilteredServices(services);
+    } else {
+      const filtered = services.filter(service => 
+        service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        service.description.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setFilteredServices(filtered);
+    }
+  }, [searchTerm, services]);
+  
+  // eslint-disable-next-line no-unused-vars
+  const handleBookService = (serviceId) => {
+    if (!currentUser) {
+      navigate('/login');
+    } else if (currentUser.accountType !== 'petOwner' && currentUser.role !== 'petOwner') {
+      alert('Only pet owners can book services.');
+    } else {
+      navigate(`/book-service/${serviceId}`);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -217,39 +120,108 @@ function Services() {
       <div className="bg-teal-600 text-white py-24">
         <div className="container mx-auto px-4 text-center">
           <h1 className="text-4xl font-bold mb-6">Pet Care Services</h1>
-          <p className="text-xl mx-auto max-w-2xl">
+          <p className="text-xl mx-auto max-w-2xl mb-8">
             Find the perfect service for your pet from our network of verified professionals
           </p>
+          
+          {/* Search bar */}
+          <div className="max-w-xl mx-auto relative">
+            <input
+              type="text"
+              placeholder="Search for services..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-4 py-3 pl-12 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900"
+            />
+            <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+          </div>
         </div>
       </div>
 
-      {/* Categories section */}
-      <div className="py-16 container mx-auto px-4">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Discover a wide range of pet care services tailored to your pet's needs</h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
-          {serviceCategories.map((category) => (
-            <Link 
-              to={category.path} 
-              key={category.id} 
-              className="flex flex-col items-center text-center group transition-transform transform hover:scale-105"
+      {/* Available Services section */}
+      <div className="py-16 bg-white">
+        <div className="container mx-auto px-4">
+          <h2 className="text-3xl font-bold mb-12 text-center text-gray-800">Available Services</h2>
+          
+          {error && (
+            <div className="mb-8 p-4 bg-red-100 text-red-700 rounded-md text-center">
+              {error}
+            </div>
+          )}
+          
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-teal-500 border-t-transparent"></div>
+              <p className="mt-4 text-gray-600">Loading services...</p>
+            </div>
+          ) : error ? (
+            <div className="text-center py-12">
+              <p className="text-red-600">{error}</p>
+            </div>
+          ) : filteredServices.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-600">No services found matching your search.</p>
+              <button
+                onClick={() => setSearchTerm("")}
+                className="mt-4 px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 transition-colors"
+              >
+                View All Services
+              </button>
+            </div>
+          ) : (
+            <motion.div 
+              className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
             >
-              <div className="w-24 h-24 bg-teal-100 rounded-full flex items-center justify-center mb-6 group-hover:bg-teal-200 transition-colors">
-                <div className="text-teal-600">
-                  {category.icon}
-                </div>
-              </div>
-              <h3 className="text-xl font-bold mb-4">{category.name}</h3>
-              <p className="text-gray-600">{category.description}</p>
-              <span className="mt-4 inline-flex items-center text-teal-600 font-medium">
-                View services <ChevronRight size={16} className="ml-1" />
-              </span>
-            </Link>
-          ))}
+              <AnimatePresence mode="popLayout">
+                {filteredServices.map(service => (
+                  <motion.div 
+                    key={service.id} 
+                    variants={cardVariants}
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                    layout
+                    className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
+                  >
+                    <div className="p-6">
+                      <h3 className="text-xl font-bold text-gray-800 mb-2">{service.name}</h3>
+                      <p className="text-gray-600 mb-4">{service.description || "No description available."}</p>
+                      
+                      {providers[service.providerId] && (
+                        <p className="text-sm text-gray-500 mb-4">
+                          Provided by <span className="font-medium">{providers[service.providerId].name}</span>
+                        </p>
+                      )}
+                      
+                      <div className="flex justify-between items-center">
+                        <span className="text-2xl font-bold text-teal-600">₨{service.price.toFixed(2)}</span>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => navigate(`/service/${service.id}`)}
+                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg text-sm px-4 py-2.5"
+                          >
+                            View Details
+                          </button>
+                          <CheckoutButton
+                            serviceName={service.name}
+                            price={service.price}
+                            serviceId={service.id}
+                            className="text-sm px-5 py-2.5"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </motion.div>
+          )}
         </div>
       </div>
+
 
       {/* How it works - always show */}
       <div className="py-16 bg-gray-50">
@@ -290,4 +262,4 @@ function Services() {
   );
 }
 
-export default Services; 
+export default Services;

@@ -19,6 +19,7 @@ services:
       # - GEMINI_API_KEY
       # - FRONTEND_URL (your Firebase hosting URL)
       # - VERCEL_URL (your Vercel app URL)
-    healthCheckPath: /api/users
+      # - ML_API_URL (your ML API Render URL - e.g., https://petcarehub-ml-api.onrender.com)
+    healthCheckPath: /
     autoDeploy: true
 

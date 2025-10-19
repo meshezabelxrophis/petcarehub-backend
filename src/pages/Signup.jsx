@@ -1,7 +1,12 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { signUpWithEmail, signInWithGoogle } from "../services/authService";
+import { useAuth } from "../context/AuthContext";
 
 function Signup() {
+  const navigate = useNavigate();
+  const { login } = useAuth();
+  
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -9,10 +14,18 @@ function Signup() {
     password: "",
     confirmPassword: "",
     accountType: "petOwner",
-    agreeToTerms: false
+    agreeToTerms: false,
+    // Location fields for service providers
+    address: "",
+    phone: "",
+    bio: "",
+    latitude: null,
+    longitude: null
   });
   
   const [errors, setErrors] = useState({});
+  const [gettingLocation, setGettingLocation] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -29,6 +42,55 @@ function Signup() {
         return newErrors;
       });
     }
+  };
+
+  const getCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setErrors(prev => ({ ...prev, location: "Geolocation is not supported by this browser" }));
+      return;
+    }
+
+    setGettingLocation(true);
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors.location;
+      return newErrors;
+    });
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setFormData(prev => ({
+          ...prev,
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        }));
+        setGettingLocation(false);
+      },
+      (error) => {
+        let errorMessage = "Unable to retrieve your location";
+        switch(error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = "Location access denied. Please enable location permissions.";
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = "Location information is unavailable.";
+            break;
+          case error.TIMEOUT:
+            errorMessage = "Location request timed out.";
+            break;
+          default:
+            errorMessage = "An unknown error occurred while getting location.";
+            break;
+        }
+        setErrors(prev => ({ ...prev, location: errorMessage }));
+        setGettingLocation(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 600000 // 10 minutes
+      }
+    );
   };
   
   const validateForm = () => {
@@ -62,20 +124,131 @@ function Signup() {
       newErrors.agreeToTerms = "You must agree to the terms and conditions";
     }
     
+    // Additional validation for service providers
+    if (formData.accountType === 'serviceProvider') {
+      if (!formData.address.trim()) {
+        newErrors.address = "Address is required for service providers";
+      }
+      
+      if (!formData.phone.trim()) {
+        newErrors.phone = "Phone number is required for service providers";
+      }
+      
+      // Make location optional with a warning instead of blocking submission
+      if (!formData.latitude || !formData.longitude) {
+        newErrors.location = "Getting location will help customers find you on the map";
+      }
+    }
+    
     return newErrors;
   };
   
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     const formErrors = validateForm();
-    if (Object.keys(formErrors).length > 0) {
-      setErrors(formErrors);
+    // Only block submission for critical errors (not location warning)
+    const criticalErrors = {...formErrors};
+    if (criticalErrors.location && criticalErrors.location.includes("help customers find")) {
+      delete criticalErrors.location; // Don't block submission for location warning
+    }
+    
+    if (Object.keys(criticalErrors).length > 0) {
+      setErrors(formErrors); // Show all errors including warnings
       return;
     }
     
-    console.log("Form submitted with:", formData);
-    // In a real application, this would make an API call to register the user
+    setIsSubmitting(true);
+    setErrors({}); // Clear previous errors
+    
+    try {
+      console.log('🔐 Signing up with Firebase Auth...');
+      
+      const fullName = `${formData.firstName} ${formData.lastName}`;
+      const role = formData.accountType;
+      
+      // Prepare additional data for service providers
+      const additionalData = {};
+      if (role === 'serviceProvider') {
+        additionalData.address = formData.address;
+        additionalData.phone = formData.phone;
+        additionalData.bio = formData.bio;
+        if (formData.latitude && formData.longitude) {
+          additionalData.location = {
+            latitude: formData.latitude,
+            longitude: formData.longitude
+          };
+        }
+      }
+      
+      // Sign up with Firebase Auth
+      const userData = await signUpWithEmail(
+        formData.email,
+        formData.password,
+        fullName,
+        role,
+        additionalData
+      );
+      
+      console.log('✅ Sign up successful:', userData);
+      
+      // Update auth context
+      login(userData);
+      
+      // Show success message
+      alert('Account created successfully!');
+      
+      // Redirect based on role
+      if (role === 'serviceProvider') {
+        navigate('/service-dashboard');
+      } else {
+        navigate('/');
+      }
+      
+    } catch (error) {
+      console.error('❌ Sign up error:', error);
+      setErrors(prev => ({ 
+        ...prev, 
+        submit: error.message || 'Failed to create account. Please try again.' 
+      }));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  const handleGoogleSignup = async () => {
+    setIsSubmitting(true);
+    setErrors({});
+    
+    try {
+      console.log('🔐 Signing up with Google...');
+      
+      // For Google sign-in, use the selected account type
+      const role = formData.accountType;
+      
+      const userData = await signInWithGoogle(role);
+      
+      console.log('✅ Google sign up successful:', userData);
+      
+      // Update auth context
+      login(userData);
+      
+      // Redirect based on role
+      if (role === 'serviceProvider') {
+        navigate('/service-dashboard');
+      } else {
+        navigate('/');
+      }
+      
+    } catch (error) {
+      console.error('❌ Google sign up error:', error);
+      setErrors(prev => ({ 
+        ...prev, 
+        submit: error.message || 'Failed to sign up with Google. Please try again.' 
+      }));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
   return (
@@ -255,6 +428,126 @@ function Signup() {
               </div>
             </div>
 
+            {/* Service Provider Additional Fields */}
+            {formData.accountType === 'serviceProvider' && (
+              <div className="space-y-6 p-4 bg-teal-50 rounded-lg border border-teal-200">
+                <h3 className="text-lg font-medium text-teal-900">Service Provider Information</h3>
+                
+                <div>
+                  <label htmlFor="address" className="block text-sm font-medium text-gray-700">
+                    Business Address *
+                  </label>
+                  <div className="mt-1">
+                    <textarea
+                      id="address"
+                      name="address"
+                      rows={2}
+                      value={formData.address}
+                      onChange={handleChange}
+                      placeholder="Enter your business address"
+                      className={`appearance-none block w-full px-3 py-2 border ${
+                        errors.address ? "border-red-300" : "border-gray-300"
+                      } rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-teal-500 focus:border-teal-500 sm:text-sm`}
+                    />
+                    {errors.address && (
+                      <p className="mt-1 text-sm text-red-600">{errors.address}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+                    Contact Number *
+                  </label>
+                  <div className="mt-1">
+                    <input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      placeholder="+92-xxx-xxx-xxxx"
+                      className={`appearance-none block w-full px-3 py-2 border ${
+                        errors.phone ? "border-red-300" : "border-gray-300"
+                      } rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-teal-500 focus:border-teal-500 sm:text-sm`}
+                    />
+                    {errors.phone && (
+                      <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="bio" className="block text-sm font-medium text-gray-700">
+                    Business Description (Optional)
+                  </label>
+                  <div className="mt-1">
+                    <textarea
+                      id="bio"
+                      name="bio"
+                      rows={3}
+                      value={formData.bio}
+                      onChange={handleChange}
+                      placeholder="Describe your services and experience..."
+                      className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-teal-500 focus:border-teal-500 sm:text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Location for Map Visibility *
+                  </label>
+                  <div className="flex items-center space-x-4">
+                    <button
+                      type="button"
+                      onClick={getCurrentLocation}
+                      disabled={gettingLocation}
+                      className={`flex-1 flex items-center justify-center px-4 py-2 border border-teal-300 rounded-md shadow-sm text-sm font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      {gettingLocation ? (
+                        <>
+                          <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-teal-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Getting Location...
+                        </>
+                      ) : formData.latitude && formData.longitude ? (
+                        <>
+                          <svg className="w-4 h-4 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Location Captured
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          Get Current Location
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  {formData.latitude && formData.longitude && (
+                    <p className="mt-2 text-xs text-green-600">
+                      📍 Location: {formData.latitude.toFixed(4)}, {formData.longitude.toFixed(4)}
+                    </p>
+                  )}
+                  {errors.location && (
+                    <p className={`mt-1 text-sm ${errors.location.includes("help customers") ? "text-orange-600" : "text-red-600"}`}>
+                      {errors.location}
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    This helps customers find you on the map. Your exact location will not be shared publicly.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-start">
               <div className="flex items-center h-5">
                 <input
@@ -271,13 +564,21 @@ function Signup() {
               <div className="ml-3 text-sm">
                 <label htmlFor="agreeToTerms" className={`font-medium ${errors.agreeToTerms ? "text-red-700" : "text-gray-700"}`}>
                   I agree to the{" "}
-                  <a href="#" className="text-teal-600 hover:text-teal-500">
+                  <button
+                    type="button"
+                    className="text-teal-600 hover:text-teal-500"
+                    onClick={() => alert("Terms of Service document will be available soon!")}
+                  >
                     Terms of Service
-                  </a>{" "}
+                  </button>{" "}
                   and{" "}
-                  <a href="#" className="text-teal-600 hover:text-teal-500">
+                  <button
+                    type="button"
+                    className="text-teal-600 hover:text-teal-500"
+                    onClick={() => alert("Privacy Policy document will be available soon!")}
+                  >
                     Privacy Policy
-                  </a>
+                  </button>
                 </label>
                 {errors.agreeToTerms && (
                   <p className="mt-1 text-sm text-red-600">{errors.agreeToTerms}</p>
@@ -288,10 +589,24 @@ function Signup() {
             <div>
               <button
                 type="submit"
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+                disabled={isSubmitting}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Create Account
+                {isSubmitting ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Creating Account...
+                  </>
+                ) : (
+                  'Create Account'
+                )}
               </button>
+              {errors.submit && (
+                <p className="mt-2 text-sm text-red-600 text-center">{errors.submit}</p>
+              )}
             </div>
           </form>
           
@@ -307,9 +622,10 @@ function Signup() {
 
             <div className="mt-6 grid grid-cols-3 gap-3">
               <div>
-                <a
-                  href="#"
+                <button
+                  type="button"
                   className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+                  onClick={() => alert("Facebook signup coming soon!")}
                 >
                   <span className="sr-only">Sign up with Facebook</span>
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
@@ -319,37 +635,40 @@ function Signup() {
                       clipRule="evenodd"
                     />
                   </svg>
-                </a>
+                </button>
               </div>
 
               <div>
-                <a
-                  href="#"
+                <button
+                  type="button"
                   className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+                  onClick={() => alert("Twitter signup coming soon!")}
                 >
                   <span className="sr-only">Sign up with Twitter</span>
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                     <path
-                      d="M6.29 18.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0020 3.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.073 4.073 0 01.8 7.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 010 16.407a11.616 11.616 0 006.29 1.84"
+                      d="M6.29 18.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0020 3.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996a4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.073 4.073 0 01.8 7.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 010 16.407a11.616 11.616 0 006.29 1.84"
                     />
                   </svg>
-                </a>
+                </button>
               </div>
 
               <div>
-                <a
-                  href="#"
-                  className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleGoogleSignup}
                 >
                   <span className="sr-only">Sign up with Google</span>
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                    <path
-                      fillRule="evenodd"
-                      d="M10 0C4.477 0 0 4.484 0 10.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0110 4.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.203 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.942.359.31.678.921.678 1.856 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0020 10.017C20 4.484 15.522 0 10 0z"
-                      clipRule="evenodd"
-                    />
+                  <svg className="w-5 h-5" viewBox="0 0 48 48" aria-hidden="true">
+                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                    <path fill="none" d="M0 0h48v48H0z"/>
                   </svg>
-                </a>
+                </button>
               </div>
             </div>
           </div>

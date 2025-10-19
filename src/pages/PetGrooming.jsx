@@ -12,7 +12,7 @@ function PetGrooming() {
       rating: 4.8,
       reviews: 124,
       image: "/placeholder.svg",
-      price: "$60",
+      price: "₨6,000",
       description: "Complete grooming service including bath, haircut, nail trimming, ear cleaning, and more."
     },
     {
@@ -22,7 +22,7 @@ function PetGrooming() {
       rating: 4.6,
       reviews: 98,
       image: "/placeholder.svg",
-      price: "$40",
+      price: "₨4,000",
       description: "Basic cleaning service with shampoo, conditioning, and brush out."
     },
     {
@@ -32,7 +32,7 @@ function PetGrooming() {
       rating: 4.5,
       reviews: 76,
       image: "/placeholder.svg",
-      price: "$15",
+      price: "₨1,500",
       description: "Professional nail trimming service to keep your pet's paws healthy."
     },
     {
@@ -42,7 +42,7 @@ function PetGrooming() {
       rating: 4.9,
       reviews: 112,
       image: "/placeholder.svg",
-      price: "$75",
+      price: "₨7,500",
       description: "Specialized grooming tailored to your pet's breed standards with expert styling."
     },
     {
@@ -52,7 +52,7 @@ function PetGrooming() {
       rating: 4.7,
       reviews: 93,
       image: "/placeholder.svg",
-      price: "$35",
+      price: "₨3,500",
       description: "Special treatment to eliminate fleas and ticks while leaving your pet's coat clean and healthy."
     },
     {
@@ -62,7 +62,7 @@ function PetGrooming() {
       rating: 4.8,
       reviews: 87,
       image: "/placeholder.svg",
-      price: "$45",
+      price: "₨4,500",
       description: "Specialized treatment to reduce shedding by removing loose fur from your pet's undercoat."
     }
   ];

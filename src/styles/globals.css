@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Leaflet CSS */
+@import 'leaflet/dist/leaflet.css';
+
 :root {
   --background: 0 0% 100%;
   --foreground: 240 10% 3.9%;
@@ -55,4 +58,33 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background-color: white;
   color: black;
+}
+
+/* PageLoader animations */
+@keyframes gentle-pulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+.loader-fallback {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(45deg, #3b82f6, #60a5fa);
+  animation: gentle-pulse 1.5s ease-in-out infinite;
+}
+
+.paw-icon {
+  filter: drop-shadow(0 2px 4px rgba(59, 130, 246, 0.2));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-loader-overlay {
+    animation: none !important;
+  }
+  
+  .paw-icon,
+  .loader-fallback {
+    animation: none !important;
+  }
 } 

@@ -142,7 +142,7 @@ function SmartCollars() {
             <div className="p-6">
               <div className="flex justify-between items-start mb-2">
                 <h3 className="text-xl font-semibold">{collar.name}</h3>
-                <span className="text-lg font-bold text-teal-600">${collar.price}</span>
+                <span className="text-lg font-bold text-teal-600">₨{collar.price}</span>
               </div>
               <p className="text-gray-600 text-sm mb-4">{collar.description}</p>
               <div className="mb-4">

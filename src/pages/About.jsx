@@ -89,36 +89,9 @@ function About() {
         
         <div className="mb-16">
           <h2 className="text-3xl font-bold text-gray-900 mb-8">Our Team</h2>
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              {
-                name: "Sarah Johnson",
-                role: "Founder & CEO",
-                image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
-              },
-              {
-                name: "Michael Chen",
-                role: "CTO",
-                image: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
-              },
-              {
-                name: "Jessica Rivera",
-                role: "Head of Operations",
-                image: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
-              }
-            ].map((member, index) => (
-              <div key={index} className="bg-white rounded-xl shadow-sm overflow-hidden">
-                <img 
-                  src={member.image} 
-                  alt={member.name}
-                  className="w-full h-64 object-cover"
-                />
-                <div className="p-6">
-                  <h3 className="text-xl font-semibold text-gray-800">{member.name}</h3>
-                  <p className="text-teal-600">{member.role}</p>
-                </div>
-              </div>
-            ))}
+          <div className="text-center">
+            <p className="text-xl text-gray-800 mb-2">Uzair Yameen</p>
+            <p className="text-xl text-gray-800">Meshezabel Rophis</p>
           </div>
         </div>
         

@@ -292,6 +292,20 @@ class PaymentService {
     return payments.length > 0 ? payments[0] : null;
   }
   
+  static async updatePaymentBySessionId(sessionId, updateData) {
+    const payment = await this.getPaymentBySessionId(sessionId);
+    if (!payment) {
+      throw new Error(`Payment not found for session: ${sessionId}`);
+    }
+    return await FirestoreService.update('payments', payment.id, updateData);
+  }
+  
+  static async getPaymentsByUser(userId) {
+    return await FirestoreService.getAll('payments', [
+      { field: 'userId', operator: '==', value: userId }
+    ]);
+  }
+  
   static async updatePayment(paymentId, paymentData) {
     return await FirestoreService.update('payments', paymentId, paymentData);
   }

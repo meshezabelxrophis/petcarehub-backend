@@ -1,0 +1,7 @@
+Animal Disease Prediction Model
+================================
+Training Date: 2025-10-04 19:58:47
+Model Type: Random Forest Classifier
+Features: 21
+Classes: 52
+Disease Classes: Actinobacillus Pleuropneumonia, Bluetongue, Bovine Johne's Disease, Bovine Respiratory Disease, Bovine Respiratory Disease Complex, Bovine Respiratory Syncytial Virus, Bovine Tuberculosis, Bovine Viral Diarrhea, Canine Distemper, Canine Hepatitis, Canine Leptospirosis, Canine Parvovirus, Caprine Arthritis Encephalitis, Caprine Pleuropneumonia, Caprine Respiratory Disease, Coccidiosis, Equine Arthritis, Equine Encephalomyelitis, Equine Herpesvirus, Equine Infectious Anemia, Equine Influenza, Equine Laminitis, Equine Protozoal Myeloencephalitis, Equine Rhinopneumonitis, Feline Asthma, Feline Calicivirus, Feline Herpesvirus, Feline Infectious Peritonitis, Feline Leukemia Virus, Feline Panleukopenia, Feline Upper Respiratory Infection, Foot and Mouth Disease, Foot-and-Mouth Disease, Gastroenteritis, Johne's Disease, Kennel Cough, Mastitis, Myxomatosis, Pancreatitis, Panleukopenia, Parvovirus, Pasteurellosis, Pneumonia, Porcine Epidemic Diarrhea, Rabbit Hemorrhagic Disease, Rabbit Syphilis, Rabbit Viral Hemorrhagic Disease, Scrapie, Swine Erysipelas, Swine Fever, Swine Influenza, Upper Respiratory Infection

@@ -5,6 +5,7 @@ const cors = require('cors');
 const http = require('http');
 const socketIo = require('socket.io');
 const pathOriginal = require('path');
+const axios = require('axios');
 
 // Firestore setup (replacing SQLite)
 const { db: firestoreDb, realtimeDb } = require('./config/firebaseAdmin');
@@ -815,7 +816,7 @@ app.get('/api/bookings/provider/:id', async (req, res) => {
 });
 
 // Update booking status
-app.put('/api/bookings/:id', (req, res) => {
+app.put('/api/bookings/:id', async (req, res) => {
   const bookingId = req.params.id;
   const { status } = req.body;
   
@@ -825,92 +826,57 @@ app.put('/api/bookings/:id', (req, res) => {
     return res.status(400).json({ error: 'Valid status is required (pending, confirmed, cancelled, completed)' });
   }
   
-  // Check if this is an in-memory booking
-  if (global.mockBookings) {
-    const bookingIndex = global.mockBookings.findIndex(b => b.id == bookingId);
-    if (bookingIndex !== -1) {
-      // Update the status of the in-memory booking
-      global.mockBookings[bookingIndex].status = status;
-      return res.json({ 
-        id: bookingId, 
-        status,
-        message: `Booking status updated to ${status}`
-      });
+  try {
+    // Update booking in Firestore
+    const updated = await BookingService.updateBooking(bookingId, { status });
+    
+    if (!updated) {
+      return res.status(404).json({ error: 'Booking not found' });
     }
+    
+    res.json({ 
+      id: bookingId, 
+      status,
+      message: `Booking status updated to ${status}`
+    });
+  } catch (error) {
+    console.error('Error updating booking:', error);
+    res.status(500).json({ error: error.message });
   }
-  
-  db.run(
-    'UPDATE bookings SET status = ? WHERE id = ?',
-    [status, bookingId],
-    function(err) {
-      if (err) return res.status(500).json({ error: err.message });
-      if (this.changes === 0) return res.status(404).json({ error: 'Booking not found' });
-      res.json({ id: bookingId, status });
-    }
-  );
 });
 
 // Delete booking
-app.delete('/api/bookings/:id', (req, res) => {
+app.delete('/api/bookings/:id', async (req, res) => {
   const bookingId = req.params.id;
   
   console.log(`Deleting booking with ID: ${bookingId}`);
   
-  // First check if the booking exists in database
-  db.get('SELECT * FROM bookings WHERE id = ?', [bookingId], (err, booking) => {
-    if (err) {
-      console.error('Error checking booking existence:', err.message);
-      return res.status(500).json({ error: err.message });
-    }
+  try {
+    // Get booking before deletion
+    const booking = await BookingService.getBookingById(bookingId);
     
-    if (booking) {
-      // Delete from database
-      db.run('DELETE FROM bookings WHERE id = ?', [bookingId], function(err) {
-        if (err) {
-          console.error('Error deleting booking from database:', err.message);
-          return res.status(500).json({ error: err.message });
-        }
-        
-        console.log(`Booking deleted from database: ID ${bookingId}`);
-        
-        // Also remove from memory if it exists
-        if (global.mockBookings) {
-          const bookingIndex = global.mockBookings.findIndex(b => b.id == bookingId);
-          if (bookingIndex !== -1) {
-            global.mockBookings.splice(bookingIndex, 1);
-            console.log(`Booking also removed from memory`);
-          }
-        }
-        
-        return res.json({
-          success: true,
-          message: `Booking with ID ${bookingId} deleted successfully`,
-          deletedBooking: booking
-        });
-      });
-    } else {
-      // Check if we have this booking in memory only
-      if (global.mockBookings) {
-        const bookingIndex = global.mockBookings.findIndex(b => b.id == bookingId);
-        if (bookingIndex !== -1) {
-          const memoryBooking = global.mockBookings[bookingIndex];
-          global.mockBookings.splice(bookingIndex, 1);
-          
-          console.log(`Booking deleted from memory: ID ${bookingId}`);
-          
-          return res.json({
-            success: true,
-            message: `Booking with ID ${bookingId} deleted successfully`,
-            deletedBooking: memoryBooking
-          });
-        }
-      }
-      
-      // Booking not found anywhere
-      console.log(`Booking with ID ${bookingId} not found`);
+    if (!booking) {
       return res.status(404).json({ error: 'Booking not found' });
     }
-  });
+    
+    // Delete from Firestore
+    const deleted = await BookingService.deleteBooking(bookingId);
+    
+    if (!deleted) {
+      return res.status(500).json({ error: 'Failed to delete booking' });
+    }
+    
+    console.log(`Booking deleted from Firestore: ID ${bookingId}`);
+    
+    return res.json({
+      success: true,
+      message: `Booking with ID ${bookingId} deleted successfully`,
+      deletedBooking: booking
+    });
+  } catch (error) {
+    console.error('Error deleting booking:', error);
+    return res.status(500).json({ error: error.message });
+  }
 });
 
 // Payment API endpoint
@@ -1462,7 +1428,7 @@ db.run(`CREATE TABLE IF NOT EXISTS disease_predictions (
 });
 
 // Disease prediction endpoint
-app.post('/api/predict-disease', (req, res) => {
+app.post('/api/predict-disease', async (req, res) => {
   const { symptoms, animal_type, age, weight, gender, breed } = req.body;
   
   // Get user ID from session/auth (you may need to adjust this based on your auth system)
@@ -1483,9 +1449,6 @@ app.post('/api/predict-disease', (req, res) => {
     timestamp: new Date().toISOString()
   });
 
-  // Import required modules for child process
-  const { spawn } = require('child_process');
-
   const inputData = {
     symptoms,
     animal_type: animal_type || 'Dog',
@@ -1496,98 +1459,95 @@ app.post('/api/predict-disease', (req, res) => {
   };
 
   try {
-    // Spawn Python process
-    const pythonProcess = spawn('python3', ['api_predict.py'], {
-      cwd: `${__dirname}/../ml_models`,
-      stdio: ['pipe', 'pipe', 'pipe']
-    });
-
-    let outputData = '';
-    let errorData = '';
-
-    // Send input data to Python script
-    pythonProcess.stdin.write(JSON.stringify(inputData));
-    pythonProcess.stdin.end();
-
-    // Collect output
-    pythonProcess.stdout.on('data', (data) => {
-      outputData += data.toString();
-    });
-
-    pythonProcess.stderr.on('data', (data) => {
-      errorData += data.toString();
-    });
-
-    // Handle process completion
-    pythonProcess.on('close', (code) => {
-      if (code !== 0) {
-        console.error('Python script error:', errorData);
-        return res.status(500).json({
-          error: 'Disease prediction failed',
-          details: errorData,
-          predictions: []
-        });
-      }
-
+    // Call Flask ML API (local or deployed)
+    const mlApiUrl = process.env.ML_API_URL || 'http://localhost:5002';
+    
+    console.log(`Calling ML API at ${mlApiUrl}/predict`);
+    
+    // Retry logic for when service is waking up from sleep
+    let response;
+    let lastError;
+    const maxRetries = 3;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        // Parse Python output
-        const predictionResult = JSON.parse(outputData.trim());
+        console.log(`Attempt ${attempt}/${maxRetries} to call ML API...`);
         
-        if (predictionResult.error) {
-          console.error('Prediction error:', predictionResult.error);
-          return res.status(500).json(predictionResult);
-        }
-
-        // Save prediction to database
-        const symptomsJson = JSON.stringify(symptoms);
-        const predictionsJson = JSON.stringify(predictionResult.predictions);
-        
-        db.run(`INSERT INTO disease_predictions 
-                (user_id, symptoms, predictions, animal_type, age, weight) 
-                VALUES (?, ?, ?, ?, ?, ?)`,
-          [userId, symptomsJson, predictionsJson, animal_type, age, weight],
-          function(err) {
-            if (err) {
-              console.error('Error saving prediction to database:', err.message);
-              // Still return the prediction even if DB save fails
-            } else {
-              console.log('Disease prediction saved with ID:', this.lastID);
-            }
+        response = await axios.post(`${mlApiUrl}/predict`, inputData, {
+          timeout: 45000, // 45 second timeout (increased for cold starts)
+          headers: {
+            'Content-Type': 'application/json'
           }
-        );
-
-        // Return successful prediction
-        res.json({
-          ...predictionResult,
-          saved: true,
-          timestamp: new Date().toISOString()
         });
-
-      } catch (parseError) {
-        console.error('Error parsing Python output:', parseError);
-        console.error('Raw output:', outputData);
-        res.status(500).json({
-          error: 'Failed to parse prediction results',
-          details: parseError.message,
-          predictions: []
-        });
+        
+        // Success! Break out of retry loop
+        console.log('✅ ML API responded successfully');
+        break;
+        
+      } catch (err) {
+        lastError = err;
+        console.log(`⚠️ Attempt ${attempt} failed: ${err.message}`);
+        
+        // If this isn't the last attempt and it's a timeout/connection error, retry
+        if (attempt < maxRetries && (err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT' || err.code === 'ECONNREFUSED')) {
+          console.log(`⏳ Service might be waking up... retrying in 3 seconds...`);
+          await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds before retry
+          continue;
+        }
+        
+        // Last attempt or non-retryable error
+        throw err;
       }
-    });
+    }
 
-    // Handle process errors
-    pythonProcess.on('error', (error) => {
-      console.error('Failed to start Python process:', error);
-      res.status(500).json({
-        error: 'Failed to start disease prediction service',
-        details: error.message,
-        predictions: []
-      });
+    const predictionResult = response.data;
+    
+    if (predictionResult.error) {
+      console.error('Prediction error:', predictionResult.error);
+      return res.status(500).json(predictionResult);
+    }
+
+    // Save prediction to Firestore
+    try {
+      const predictionData = {
+        userId: userId.toString(),
+        symptoms,
+        predictions: predictionResult.predictions,
+        animalType: animal_type,
+        age,
+        weight,
+        timestamp: new Date().toISOString()
+      };
+      
+      await firestoreDb.collection('disease_predictions').add(predictionData);
+      console.log('Disease prediction saved to Firestore');
+    } catch (dbError) {
+      console.error('Error saving prediction to Firestore:', dbError.message);
+      // Continue even if DB save fails
+    }
+
+    // Return successful prediction
+    res.json({
+      ...predictionResult,
+      saved: true,
+      timestamp: new Date().toISOString()
     });
 
   } catch (error) {
-    console.error('Error in disease prediction:', error);
+    console.error('Error calling ML API:', error.message);
+    
+    // Check if it's a connection error
+    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
+      return res.status(503).json({
+        error: 'ML prediction service unavailable',
+        details: 'The disease prediction service is waking up. Please try again in 10 seconds.',
+        predictions: [],
+        retryable: true
+      });
+    }
+    
     res.status(500).json({
-      error: 'Internal server error',
+      error: 'Disease prediction failed',
       details: error.message,
       predictions: []
     });
@@ -1653,12 +1613,24 @@ app.get('/api/disease-stats/:userId', (req, res) => {
   );
 });
 
-// Serve React static files
-app.use(express.static(path.join(__dirname, '../build')));
-
-// Fallback to React for any other route
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../build', 'index.html'));
+// API-only backend - frontend hosted separately on Firebase
+// Health check endpoint for root path
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'online',
+    message: 'PetCareHub Backend API',
+    version: '1.0.0',
+    endpoints: {
+      users: '/api/users',
+      pets: '/api/pets',
+      services: '/api/services',
+      bookings: '/api/bookings',
+      providers: '/api/providers',
+      petLocation: '/api/pet-location',
+      chatbot: '/api/chatbot',
+      payments: '/api/create-checkout-session'
+    }
+  });
 });
 
 server.listen(PORT, () => {

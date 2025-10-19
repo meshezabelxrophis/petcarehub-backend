@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: petcarehub-ml-api
+    runtime: python3
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -b 0.0.0.0:$PORT flask_api:app
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+

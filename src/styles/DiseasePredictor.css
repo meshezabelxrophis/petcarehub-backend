@@ -1,0 +1,141 @@
+/* Disease Predictor Mobile Responsiveness Enhancements */
+
+/* Mobile-first responsive design */
+@media (max-width: 768px) {
+  .disease-predictor-container {
+    padding: 1rem;
+  }
+  
+  .disease-predictor-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .symptom-chips {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .symptom-chip {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+  
+  .prediction-card {
+    padding: 1rem;
+  }
+  
+  .prediction-card h4 {
+    font-size: 1.125rem;
+  }
+  
+  .health-score-container {
+    padding: 1rem;
+  }
+  
+  .confidence-chart {
+    height: 200px;
+  }
+  
+  .history-table {
+    font-size: 0.75rem;
+  }
+  
+  .history-table td {
+    padding: 0.5rem 0.25rem;
+  }
+  
+  .map-container {
+    height: 200px;
+  }
+}
+
+/* Tablet responsiveness */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .disease-predictor-grid {
+    grid-template-columns: 1fr 2fr;
+    gap: 1.5rem;
+  }
+  
+  .confidence-chart {
+    height: 250px;
+  }
+  
+  .map-container {
+    height: 250px;
+  }
+}
+
+/* Desktop enhancements */
+@media (min-width: 1025px) {
+  .disease-predictor-container {
+    max-width: 1400px;
+  }
+  
+  .confidence-chart {
+    height: 300px;
+  }
+  
+  .map-container {
+    height: 300px;
+  }
+}
+
+/* Print styles for medical reports */
+@media print {
+  .disease-predictor-container {
+    background: white;
+    color: black;
+  }
+  
+  .prediction-card {
+    border: 1px solid #ccc;
+    break-inside: avoid;
+    margin-bottom: 1rem;
+  }
+  
+  .map-container,
+  .confidence-chart,
+  .navbar,
+  .footer {
+    display: none;
+  }
+  
+  .health-score-container {
+    border: 2px solid #333;
+    padding: 1rem;
+  }
+}
+
+/* Accessibility enhancements */
+@media (prefers-reduced-motion: reduce) {
+  .health-score-bar {
+    transition: none;
+  }
+  
+  .loading-spinner {
+    animation: none;
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .prediction-card {
+    border: 2px solid #000;
+  }
+  
+  .severity-severe {
+    background-color: #ff0000;
+    color: #ffffff;
+  }
+  
+  .severity-moderate {
+    background-color: #ffaa00;
+    color: #000000;
+  }
+  
+  .severity-mild {
+    background-color: #00aa00;
+    color: #ffffff;
+  }
+}

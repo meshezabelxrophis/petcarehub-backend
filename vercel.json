@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "name": "petcarehub-external-api",
   "builds": [
     {
       "src": "api/**/*.js",

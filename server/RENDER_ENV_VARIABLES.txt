@@ -1,0 +1,68 @@
+# ==========================================
+# PetCareHub Backend - Render Environment Variables
+# ==========================================
+# 
+# Copy each of these to Render Dashboard → Environment section
+# Replace the placeholder values with your actual credentials
+# ==========================================
+
+NODE_ENV=production
+
+# ==========================================
+# FIREBASE ADMIN SDK
+# ==========================================
+# Get these from: Firebase Console → Project Settings → Service Accounts → Generate Private Key
+
+FIREBASE_PROJECT_ID=your-project-id
+
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@your-project-id.iam.gserviceaccount.com
+
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
+Your private key here (paste the entire key including this line)
+Keep the newlines or use \n characters
+-----END PRIVATE KEY-----"
+
+FIREBASE_DATABASE_URL=https://your-project-id-default-rtdb.firebaseio.com
+
+# ==========================================
+# STRIPE
+# ==========================================
+# Get from: https://dashboard.stripe.com/apikeys
+
+STRIPE_SECRET_KEY=sk_live_your_stripe_secret_key
+
+STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
+
+# ==========================================
+# GOOGLE GEMINI AI
+# ==========================================
+# Get from: https://makersuite.google.com/app/apikey
+
+GEMINI_API_KEY=your_gemini_api_key
+
+# ==========================================
+# FRONTEND URLs (for CORS)
+# ==========================================
+
+FRONTEND_URL=https://petcarehub-fyp.web.app
+
+VERCEL_URL=https://your-vercel-app.vercel.app
+
+
+# ==========================================
+# HOW TO ADD THESE TO RENDER
+# ==========================================
+# 
+# 1. Go to: https://dashboard.render.com
+# 2. Select your service: petcarehub-backend
+# 3. Click "Environment" in the left sidebar
+# 4. Click "Add Environment Variable"
+# 5. Copy each KEY=VALUE pair above
+# 6. Paste the KEY in "Key" field
+# 7. Paste the VALUE in "Value" field
+# 8. Click "Save Changes"
+# 9. Render will automatically redeploy
+# 
+# ==========================================
+
+

@@ -12,7 +12,7 @@ function VeterinaryCare() {
       rating: 4.9,
       reviews: 218,
       image: "/placeholder.svg",
-      price: "$85",
+      price: "₨8,500",
       description: "Comprehensive annual health examination including vaccinations and health assessment."
     },
     {
@@ -22,7 +22,7 @@ function VeterinaryCare() {
       rating: 4.7,
       reviews: 143,
       image: "/placeholder.svg",
-      price: "$150",
+      price: "₨15,000",
       description: "Professional dental cleaning to maintain your pet's oral health."
     },
     {
@@ -32,7 +32,7 @@ function VeterinaryCare() {
       rating: 4.8,
       reviews: 187,
       image: "/placeholder.svg",
-      price: "$65",
+      price: "₨6,500",
       description: "Essential vaccinations to protect your pet from common diseases."
     },
     {
@@ -42,7 +42,7 @@ function VeterinaryCare() {
       rating: 4.9,
       reviews: 176,
       image: "/placeholder.svg",
-      price: "From $120",
+      price: "From ₨12,000",
       description: "Urgent care services for pet emergencies available around the clock."
     },
     {
@@ -52,7 +52,7 @@ function VeterinaryCare() {
       rating: 4.7,
       reviews: 94,
       image: "/placeholder.svg",
-      price: "$55",
+      price: "₨5,500",
       description: "Expert advice on diet and nutrition tailored to your pet's specific health needs."
     },
     {
@@ -62,7 +62,7 @@ function VeterinaryCare() {
       rating: 4.8,
       reviews: 129,
       image: "/placeholder.svg",
-      price: "$45-$180",
+      price: "₨4,500-₨18,000",
       description: "Comprehensive range of diagnostic tests including blood work and urinalysis."
     }
   ];

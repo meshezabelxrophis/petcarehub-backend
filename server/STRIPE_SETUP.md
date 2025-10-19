@@ -6,8 +6,8 @@ Add these to your `server/.env` file:
 
 ```env
 # Stripe Configuration
-STRIPE_SECRET_KEY=sk_test_51SEUewFg28xQAfMi0pPJJcOnVY2kZec25zkspUTTmXWW5jZeU9M8pb8tilKddVvVRdR59ParCFeSbBHRU1LOULqW00kKMzSiy4
-STRIPE_PUBLISHABLE_KEY=pk_test_51SEUewFg28xQAfMiXtnKx3VybduPNdQmPwDO8bYIOZBpI7R6SwZTbVARm5Jez8Vdc7mSa50V4TgxBcalHa76SDti00BtzjrmdB
+STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key_here
+STRIPE_PUBLISHABLE_KEY=pk_test_your_stripe_publishable_key_here
 STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret_here
 
 # Frontend URL for redirects

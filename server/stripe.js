@@ -1,29 +1,11 @@
 const express = require('express');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const { db } = require('./config/firebaseAdmin');
+const { BookingService, PaymentService } = require('./services/firestoreService');
 
 const router = express.Router();
 
-// Database connection
-const dbPath = path.join(__dirname, '..', 'database.sqlite');
-const db = new sqlite3.Database(dbPath);
-
-// Create payments table if it doesn't exist
-db.run(`
-  CREATE TABLE IF NOT EXISTS payments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    stripe_session_id TEXT UNIQUE,
-    user_id INTEGER,
-    service_id INTEGER,
-    service_name TEXT,
-    amount INTEGER,
-    currency TEXT DEFAULT 'usd',
-    status TEXT DEFAULT 'pending',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    completed_at DATETIME
-  )
-`);
+console.log('✅ Stripe router initialized with Firestore');
 
 // Create checkout session endpoint
 router.post('/create-checkout-session', async (req, res) => {
@@ -80,19 +62,26 @@ router.post('/create-checkout-session', async (req, res) => {
       },
     });
 
-    // Store payment record in database
-    db.run(
-      `INSERT INTO payments (stripe_session_id, user_id, service_id, service_name, amount, currency, status) 
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [session.id, userId, serviceId, serviceName, priceInCents, currency, 'pending'],
-      function(err) {
-        if (err) {
-          console.error('Error storing payment record:', err);
-        } else {
-          console.log('Payment record created with ID:', this.lastID);
-        }
-      }
-    );
+    // Store payment record in Firestore
+    try {
+      const paymentData = {
+        stripeSessionId: session.id,
+        userId: userId || null,
+        serviceId: serviceId || null,
+        serviceName: serviceName,
+        amount: priceInCents,
+        currency: currency,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        completedAt: null
+      };
+      
+      const paymentRef = await PaymentService.createPayment(paymentData);
+      console.log('✅ Payment record created:', paymentRef.id);
+    } catch (err) {
+      console.error('⚠️ Error storing payment record:', err);
+      // Don't fail the checkout if payment record fails
+    }
 
     res.json({
       sessionId: session.id,
@@ -128,80 +117,68 @@ router.post('/webhook', express.raw({ type: 'application/json' }), (req, res) =>
   switch (event.type) {
     case 'checkout.session.completed':
       const session = event.data.object;
-      console.log('Payment successful for session:', session.id);
+      console.log('💳 Payment successful for session:', session.id);
 
-      // Update payment status in database
-      db.run(
-        `UPDATE payments 
-         SET status = ?, completed_at = CURRENT_TIMESTAMP 
-         WHERE stripe_session_id = ?`,
-        ['completed', session.id],
-        function(err) {
-          if (err) {
-            console.error('Error updating payment status:', err);
-          } else {
-            console.log(`Payment completed for session ${session.id}, rows affected: ${this.changes}`);
-            
-            // Here you can add additional logic like:
-            // - Send confirmation email
-            // - Update booking status
-            // - Notify service provider
-            // - Create booking record
-            
-            // Update the booking payment status if bookingId is provided
-            const { service_id, user_id, service_name, booking_id } = session.metadata;
-            
-            if (booking_id) {
-              // Update existing booking payment status
-              db.run(
-                `UPDATE bookings 
-                 SET payment_status = ?, stripe_session_id = ? 
-                 WHERE id = ?`,
-                ['paid', session.id, booking_id],
-                function(bookingErr) {
-                  if (bookingErr) {
-                    console.error('Error updating booking payment status:', bookingErr);
-                  } else {
-                    console.log(`Booking #${booking_id} marked as paid, rows affected: ${this.changes}`);
-                  }
-                }
-              );
-            } else if (service_id && user_id) {
-              // Legacy: Create a booking record if no booking_id provided
-              db.run(
-                `INSERT INTO bookings (user_id, service_id, status, payment_status, created_at) 
-                 VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-                [user_id, service_id, 'confirmed', 'paid'],
-                function(bookingErr) {
-                  if (bookingErr) {
-                    console.error('Error creating booking:', bookingErr);
-                  } else {
-                    console.log('Booking created with ID:', this.lastID);
-                  }
-                }
-              );
-            }
+      // Update payment status in Firestore (async but don't wait)
+      (async () => {
+        try {
+          await PaymentService.updatePaymentBySessionId(session.id, {
+            status: 'completed',
+            completedAt: new Date().toISOString()
+          });
+          console.log(`✅ Payment completed for session ${session.id}`);
+        } catch (err) {
+          console.error('⚠️ Error updating payment status:', err);
+        }
+
+        // Update the booking payment status if bookingId is provided
+        const { booking_id, service_id, user_id } = session.metadata;
+        
+        if (booking_id) {
+          try {
+            await BookingService.updateBooking(booking_id, {
+              paymentStatus: 'paid',
+              stripeSessionId: session.id,
+              status: 'confirmed'
+            });
+            console.log(`✅ Booking #${booking_id} marked as paid`);
+          } catch (bookingErr) {
+            console.error('⚠️ Error updating booking payment status:', bookingErr);
+          }
+        } else if (service_id && user_id) {
+          // Legacy: Create a booking record if no booking_id provided
+          try {
+            const newBooking = await BookingService.createBooking({
+              userId: user_id,
+              serviceId: service_id,
+              status: 'confirmed',
+              paymentStatus: 'paid',
+              stripeSessionId: session.id,
+              bookingDate: new Date().toISOString()
+            });
+            console.log('✅ Booking created with ID:', newBooking.id);
+          } catch (bookingErr) {
+            console.error('⚠️ Error creating booking:', bookingErr);
           }
         }
-      );
+      })();
       break;
 
     case 'checkout.session.expired':
-      console.log('Checkout session expired:', event.data.object.id);
-      // Update payment status to expired
-      db.run(
-        `UPDATE payments SET status = ? WHERE stripe_session_id = ?`,
-        ['expired', event.data.object.id]
-      );
+      console.log('⏰ Checkout session expired:', event.data.object.id);
+      // Update payment status to expired (async)
+      PaymentService.updatePaymentBySessionId(event.data.object.id, {
+        status: 'expired'
+      }).catch(err => console.error('⚠️ Error updating expired payment:', err));
       break;
 
     case 'payment_intent.payment_failed':
-      console.log('Payment failed:', event.data.object.id);
-      // Handle failed payment
+      console.log('❌ Payment failed:', event.data.object.id);
+      // Handle failed payment (you could update payment status here)
       break;
 
     default:
-      console.log(`Unhandled event type ${event.type}`);
+      console.log(`📌 Unhandled event type: ${event.type}`);
   }
 
   // Return a response to acknowledge receipt of the event
@@ -209,121 +186,110 @@ router.post('/webhook', express.raw({ type: 'application/json' }), (req, res) =>
 });
 
 // Get payment status endpoint
-router.get('/payment-status/:sessionId', (req, res) => {
-  const { sessionId } = req.params;
+router.get('/payment-status/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
 
-  db.get(
-    `SELECT * FROM payments WHERE stripe_session_id = ?`,
-    [sessionId],
-    (err, row) => {
-      if (err) {
-        console.error('Error fetching payment status:', err);
-        return res.status(500).json({ error: 'Database error' });
-      }
+    const payment = await PaymentService.getPaymentBySessionId(sessionId);
 
-      if (!row) {
-        return res.status(404).json({ error: 'Payment not found' });
-      }
-
-      res.json({
-        id: row.id,
-        sessionId: row.stripe_session_id,
-        status: row.status,
-        serviceName: row.service_name,
-        amount: row.amount,
-        currency: row.currency,
-        createdAt: row.created_at,
-        completedAt: row.completed_at
-      });
+    if (!payment) {
+      return res.status(404).json({ error: 'Payment not found' });
     }
-  );
+
+    res.json({
+      id: payment.id,
+      sessionId: payment.stripeSessionId,
+      status: payment.status,
+      serviceName: payment.serviceName,
+      amount: payment.amount,
+      currency: payment.currency,
+      createdAt: payment.createdAt,
+      completedAt: payment.completedAt
+    });
+  } catch (err) {
+    console.error('❌ Error fetching payment status:', err);
+    res.status(500).json({ error: 'Failed to fetch payment status' });
+  }
 });
 
 // Get user's payment history
-router.get('/payments/:userId', (req, res) => {
-  const { userId } = req.params;
+router.get('/payments/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
 
-  db.all(
-    `SELECT * FROM payments WHERE user_id = ? ORDER BY created_at DESC`,
-    [userId],
-    (err, rows) => {
-      if (err) {
-        console.error('Error fetching payment history:', err);
-        return res.status(500).json({ error: 'Database error' });
-      }
+    const payments = await PaymentService.getPaymentsByUser(userId);
 
-      const payments = rows.map(row => ({
-        id: row.id,
-        sessionId: row.stripe_session_id,
-        serviceName: row.service_name,
-        amount: row.amount,
-        currency: row.currency,
-        status: row.status,
-        createdAt: row.created_at,
-        completedAt: row.completed_at
-      }));
+    const formattedPayments = payments.map(payment => ({
+      id: payment.id,
+      sessionId: payment.stripeSessionId,
+      serviceName: payment.serviceName,
+      amount: payment.amount,
+      currency: payment.currency,
+      status: payment.status,
+      createdAt: payment.createdAt,
+      completedAt: payment.completedAt
+    }));
 
-      res.json(payments);
-    }
-  );
+    res.json(formattedPayments);
+  } catch (err) {
+    console.error('❌ Error fetching payment history:', err);
+    res.status(500).json({ error: 'Failed to fetch payment history' });
+  }
 });
 
 // Manual webhook trigger for testing (remove in production)
-router.post('/test-webhook-completion', (req, res) => {
-  const { sessionId, bookingId } = req.body;
-  
-  if (!sessionId) {
-    return res.status(400).json({ error: 'Session ID required' });
-  }
-  
-  console.log(`🧪 Manual webhook trigger for session: ${sessionId}, booking: ${bookingId}`);
-  
-  // Update payment status
-  db.run(
-    `UPDATE payments 
-     SET status = ?, completed_at = CURRENT_TIMESTAMP 
-     WHERE stripe_session_id = ?`,
-    ['completed', sessionId],
-    function(err) {
-      if (err) {
-        console.error('❌ Error updating payment status:', err);
-        return res.status(500).json({ error: 'Failed to update payment' });
-      }
-      
-      console.log(`✅ Payment completed for session ${sessionId}, rows affected: ${this.changes}`);
-      
-      if (bookingId) {
-        // Update booking payment status
-        db.run(
-          `UPDATE bookings 
-           SET payment_status = ?, stripe_session_id = ? 
-           WHERE id = ?`,
-          ['paid', sessionId, bookingId],
-          function(bookingErr) {
-            if (bookingErr) {
-              console.error('❌ Error updating booking payment status:', bookingErr);
-              return res.status(500).json({ error: 'Failed to update booking' });
-            } else {
-              console.log(`✅ Booking #${bookingId} marked as paid, rows affected: ${this.changes}`);
-              res.json({ 
-                success: true, 
-                message: `Payment and booking updated successfully`,
-                paymentUpdated: true,
-                bookingUpdated: this.changes > 0
-              });
-            }
-          }
-        );
-      } else {
-        res.json({ 
-          success: true, 
-          message: 'Payment updated successfully',
-          paymentUpdated: true,
-          bookingUpdated: false
+router.post('/test-webhook-completion', async (req, res) => {
+  try {
+    const { sessionId, bookingId } = req.body;
+    
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Session ID required' });
+    }
+    
+    console.log(`🧪 Manual webhook trigger for session: ${sessionId}, booking: ${bookingId}`);
+    
+    // Update payment status in Firestore
+    let paymentUpdated = false;
+    try {
+      await PaymentService.updatePaymentBySessionId(sessionId, {
+        status: 'completed',
+        completedAt: new Date().toISOString()
+      });
+      console.log(`✅ Payment completed for session ${sessionId}`);
+      paymentUpdated = true;
+    } catch (err) {
+      console.error('❌ Error updating payment status:', err);
+      return res.status(500).json({ error: 'Failed to update payment' });
+    }
+    
+    // Update booking if bookingId provided
+    let bookingUpdated = false;
+    if (bookingId) {
+      try {
+        await BookingService.updateBooking(bookingId, {
+          paymentStatus: 'paid',
+          stripeSessionId: sessionId,
+          status: 'confirmed'
         });
+        console.log(`✅ Booking #${bookingId} marked as paid`);
+        bookingUpdated = true;
+      } catch (bookingErr) {
+        console.error('❌ Error updating booking payment status:', bookingErr);
+        return res.status(500).json({ error: 'Failed to update booking' });
       }
     }
-  );
+    
+    res.json({ 
+      success: true, 
+      message: bookingId ? 'Payment and booking updated successfully' : 'Payment updated successfully',
+      paymentUpdated,
+      bookingUpdated
+    });
+    
+  } catch (error) {
+    console.error('❌ Error in test webhook:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 module.exports = router;

@@ -12,7 +12,7 @@ function PetTraining() {
       rating: 4.7,
       reviews: 86,
       image: "/placeholder.svg",
-      price: "$35/session",
+      price: "₨3,500/session",
       description: "Learn essential commands and establish good behavior patterns for your dog."
     },
     {
@@ -22,7 +22,7 @@ function PetTraining() {
       rating: 4.8,
       reviews: 92,
       image: "/placeholder.svg",
-      price: "$30/session",
+      price: "₨3,000/session",
       description: "Help your puppy develop social skills with other dogs and people in a safe environment."
     },
     {
@@ -32,7 +32,7 @@ function PetTraining() {
       rating: 4.9,
       reviews: 112,
       image: "/placeholder.svg",
-      price: "$45/session",
+      price: "₨4,500/session",
       description: "Specialized training to address behavioral issues such as anxiety, aggression, or excessive barking."
     },
     {
@@ -42,7 +42,7 @@ function PetTraining() {
       rating: 4.8,
       reviews: 74,
       image: "/placeholder.svg",
-      price: "$40/session",
+      price: "₨4,000/session",
       description: "Teach your pet impressive tricks and advanced commands to challenge their mind."
     },
     {
@@ -52,7 +52,7 @@ function PetTraining() {
       rating: 5.0,
       reviews: 68,
       image: "/placeholder.svg",
-      price: "$65/session",
+      price: "₨6,500/session",
       description: "Specialized training for service dogs to assist people with disabilities."
     },
     {
@@ -62,7 +62,7 @@ function PetTraining() {
       rating: 4.6,
       reviews: 105,
       image: "/placeholder.svg",
-      price: "$25/session",
+      price: "₨2,500/session",
       description: "Cost-effective group training sessions for basic commands and socialization."
     }
   ];

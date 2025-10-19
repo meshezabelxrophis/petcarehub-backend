@@ -1,0 +1,366 @@
+{
+  "Actinobacillus Pleuropneumonia": {
+    "severity": "Severe",
+    "recommendation": "This is a serious respiratory infection in pigs. Seek immediate veterinary attention as it can be fatal without proper treatment.",
+    "urgency": "Emergency",
+    "typical_animals": ["Pig"],
+    "description": "Bacterial respiratory infection causing severe pneumonia"
+  },
+  "Bluetongue": {
+    "severity": "Severe",
+    "recommendation": "Contact a veterinarian immediately. This viral disease affects ruminants and can be fatal.",
+    "urgency": "Emergency",
+    "typical_animals": ["Sheep", "Goat", "Cow"],
+    "description": "Viral disease causing fever, swelling, and blue discoloration of tongue"
+  },
+  "Bovine Johne's Disease": {
+    "severity": "Severe",
+    "recommendation": "This chronic bacterial infection requires immediate veterinary diagnosis and management. It's highly contagious among cattle.",
+    "urgency": "High",
+    "typical_animals": ["Cow"],
+    "description": "Chronic bacterial infection of the intestines causing weight loss and diarrhea"
+  },
+  "Bovine Respiratory Disease": {
+    "severity": "Moderate",
+    "recommendation": "Schedule a veterinary visit within 24-48 hours. Monitor breathing and temperature closely.",
+    "urgency": "High",
+    "typical_animals": ["Cow"],
+    "description": "Complex of respiratory infections common in cattle"
+  },
+  "Bovine Respiratory Disease Complex": {
+    "severity": "Moderate",
+    "recommendation": "Requires veterinary attention within 24 hours. Can progress rapidly if untreated.",
+    "urgency": "High",
+    "typical_animals": ["Cow"],
+    "description": "Multiple respiratory pathogens affecting cattle simultaneously"
+  },
+  "Bovine Respiratory Syncytial Virus": {
+    "severity": "Moderate",
+    "recommendation": "Contact your veterinarian within 24 hours. Monitor for breathing difficulties and fever.",
+    "urgency": "High",
+    "typical_animals": ["Cow"],
+    "description": "Viral respiratory infection causing coughing and breathing difficulties"
+  },
+  "Bovine Tuberculosis": {
+    "severity": "Severe",
+    "recommendation": "This is a serious zoonotic disease. Contact a veterinarian immediately and follow quarantine protocols.",
+    "urgency": "Emergency",
+    "typical_animals": ["Cow"],
+    "description": "Bacterial infection that can spread to humans and other animals"
+  },
+  "Bovine Viral Diarrhea": {
+    "severity": "Moderate",
+    "recommendation": "Schedule veterinary examination within 24-48 hours. Ensure proper hydration and isolation.",
+    "urgency": "High",
+    "typical_animals": ["Cow"],
+    "description": "Viral infection causing diarrhea, fever, and reproductive issues"
+  },
+  "Canine Distemper": {
+    "severity": "Severe",
+    "recommendation": "Take your dog to the nearest emergency clinic immediately. This is a life-threatening viral disease.",
+    "urgency": "Emergency",
+    "typical_animals": ["Dog"],
+    "description": "Highly contagious viral disease affecting multiple organ systems"
+  },
+  "Canine Hepatitis": {
+    "severity": "Severe",
+    "recommendation": "Seek immediate veterinary care. This viral infection can cause liver failure and death.",
+    "urgency": "Emergency",
+    "typical_animals": ["Dog"],
+    "description": "Viral infection affecting the liver, kidneys, and other organs"
+  },
+  "Canine Leptospirosis": {
+    "severity": "Severe",
+    "recommendation": "Contact your veterinarian immediately. This bacterial infection can be transmitted to humans.",
+    "urgency": "Emergency",
+    "typical_animals": ["Dog"],
+    "description": "Bacterial infection affecting kidneys and liver, transmissible to humans"
+  },
+  "Canine Parvovirus": {
+    "severity": "Severe",
+    "recommendation": "Rush to the nearest emergency veterinary clinic immediately. Parvovirus can be fatal within hours, especially in puppies.",
+    "urgency": "Emergency",
+    "typical_animals": ["Dog"],
+    "description": "Highly contagious viral infection causing severe vomiting and diarrhea"
+  },
+  "Caprine Arthritis Encephalitis": {
+    "severity": "Moderate",
+    "recommendation": "Schedule a veterinary visit within 2-3 days. This chronic condition requires ongoing management.",
+    "urgency": "Medium",
+    "typical_animals": ["Goat"],
+    "description": "Chronic viral infection causing arthritis and neurological symptoms"
+  },
+  "Caprine Pleuropneumonia": {
+    "severity": "Severe",
+    "recommendation": "Contact a veterinarian immediately. This respiratory infection can be fatal in goats.",
+    "urgency": "Emergency",
+    "typical_animals": ["Goat"],
+    "description": "Bacterial respiratory infection causing severe pneumonia in goats"
+  },
+  "Caprine Respiratory Disease": {
+    "severity": "Moderate",
+    "recommendation": "Schedule veterinary examination within 24 hours. Monitor breathing and provide supportive care.",
+    "urgency": "High",
+    "typical_animals": ["Goat"],
+    "description": "Complex respiratory condition affecting goats"
+  },
+  "Coccidiosis": {
+    "severity": "Moderate",
+    "recommendation": "Contact your veterinarian within 24-48 hours. Ensure proper hydration and sanitation.",
+    "urgency": "Medium",
+    "typical_animals": ["Dog", "Cat", "Rabbit", "Cow", "Goat", "Sheep"],
+    "description": "Parasitic infection of the intestines causing diarrhea"
+  },
+  "Equine Arthritis": {
+    "severity": "Mild",
+    "recommendation": "Schedule a veterinary consultation within a week. Provide rest and monitor mobility.",
+    "urgency": "Low",
+    "typical_animals": ["Horse"],
+    "description": "Joint inflammation causing stiffness and lameness"
+  },
+  "Equine Encephalomyelitis": {
+    "severity": "Severe",
+    "recommendation": "Contact an equine veterinarian immediately. This neurological condition can be life-threatening.",
+    "urgency": "Emergency",
+    "typical_animals": ["Horse"],
+    "description": "Viral infection of the brain and spinal cord"
+  },
+  "Equine Herpesvirus": {
+    "severity": "Moderate",
+    "recommendation": "Schedule veterinary visit within 24 hours. Isolate the horse and monitor for neurological signs.",
+    "urgency": "High",
+    "typical_animals": ["Horse"],
+    "description": "Viral infection causing respiratory and neurological symptoms"
+  },
+  "Equine Infectious Anemia": {
+    "severity": "Severe",
+    "recommendation": "Contact a veterinarian immediately. This is a reportable disease requiring quarantine measures.",
+    "urgency": "Emergency",
+    "typical_animals": ["Horse"],
+    "description": "Viral blood disease causing anemia and weakness"
+  },
+  "Equine Influenza": {
+    "severity": "Moderate",
+    "recommendation": "Schedule veterinary examination within 24 hours. Provide rest and monitor temperature.",
+    "urgency": "Medium",
+    "typical_animals": ["Horse"],
+    "description": "Highly contagious respiratory viral infection"
+  },
+  "Equine Laminitis": {
+    "severity": "Severe",
+    "recommendation": "Call an equine veterinarian immediately. This painful foot condition requires emergency treatment.",
+    "urgency": "Emergency",
+    "typical_animals": ["Horse"],
+    "description": "Inflammation of the laminae in the hoof causing severe pain"
+  },
+  "Equine Protozoal Myeloencephalitis": {
+    "severity": "Severe",
+    "recommendation": "Contact an equine neurologist immediately. This progressive neurological disease requires specialized treatment.",
+    "urgency": "Emergency",
+    "typical_animals": ["Horse"],
+    "description": "Parasitic infection of the central nervous system"
+  },
+  "Equine Rhinopneumonitis": {
+    "severity": "Moderate",
+    "recommendation": "Schedule veterinary visit within 24 hours. Isolate the horse and monitor for complications.",
+    "urgency": "High",
+    "typical_animals": ["Horse"],
+    "description": "Viral respiratory infection that can cause abortion in mares"
+  },
+  "Feline Asthma": {
+    "severity": "Moderate",
+    "recommendation": "Schedule veterinary visit within 24-48 hours. Monitor breathing and avoid triggers.",
+    "urgency": "Medium",
+    "typical_animals": ["Cat"],
+    "description": "Chronic respiratory condition causing breathing difficulties"
+  },
+  "Feline Calicivirus": {
+    "severity": "Moderate",
+    "recommendation": "Contact your veterinarian within 24 hours. Provide supportive care and monitor eating.",
+    "urgency": "Medium",
+    "typical_animals": ["Cat"],
+    "description": "Viral infection causing oral ulcers and respiratory symptoms"
+  },
+  "Feline Herpesvirus": {
+    "severity": "Moderate",
+    "recommendation": "Schedule veterinary visit within 2-3 days. Provide supportive care and monitor eye discharge.",
+    "urgency": "Medium",
+    "typical_animals": ["Cat"],
+    "description": "Viral infection causing respiratory and eye symptoms"
+  },
+  "Feline Infectious Peritonitis": {
+    "severity": "Severe",
+    "recommendation": "Contact your veterinarian immediately. This is a serious viral disease with poor prognosis.",
+    "urgency": "Emergency",
+    "typical_animals": ["Cat"],
+    "description": "Fatal viral disease causing inflammation of body cavities"
+  },
+  "Feline Leukemia Virus": {
+    "severity": "Severe",
+    "recommendation": "Schedule veterinary examination within 24 hours. This immunosuppressive virus requires ongoing management.",
+    "urgency": "High",
+    "typical_animals": ["Cat"],
+    "description": "Viral infection causing immunosuppression and cancer"
+  },
+  "Feline Panleukopenia": {
+    "severity": "Severe",
+    "recommendation": "Take your cat to the emergency clinic immediately. This is highly contagious and often fatal.",
+    "urgency": "Emergency",
+    "typical_animals": ["Cat"],
+    "description": "Highly contagious viral infection causing severe vomiting and diarrhea"
+  },
+  "Feline Upper Respiratory Infection": {
+    "severity": "Mild",
+    "recommendation": "Monitor closely for 2-3 days. If symptoms worsen or persist beyond a week, contact your veterinarian.",
+    "urgency": "Low",
+    "typical_animals": ["Cat"],
+    "description": "Common viral or bacterial infection of the upper respiratory tract"
+  },
+  "Foot and Mouth Disease": {
+    "severity": "Severe",
+    "recommendation": "Contact authorities and veterinarian immediately. This is a highly contagious reportable disease.",
+    "urgency": "Emergency",
+    "typical_animals": ["Cow", "Pig", "Sheep", "Goat"],
+    "description": "Highly contagious viral disease affecting cloven-hoofed animals"
+  },
+  "Foot-and-Mouth Disease": {
+    "severity": "Severe",
+    "recommendation": "Contact authorities and veterinarian immediately. This is a highly contagious reportable disease.",
+    "urgency": "Emergency",
+    "typical_animals": ["Cow", "Pig", "Sheep", "Goat"],
+    "description": "Highly contagious viral disease affecting cloven-hoofed animals"
+  },
+  "Gastroenteritis": {
+    "severity": "Moderate",
+    "recommendation": "Monitor for 24 hours. If vomiting/diarrhea persists or animal becomes lethargic, contact your veterinarian.",
+    "urgency": "Medium",
+    "typical_animals": ["Dog", "Cat", "Cow", "Horse", "Sheep", "Goat", "Pig", "Rabbit"],
+    "description": "Inflammation of the stomach and intestines causing digestive upset"
+  },
+  "Johne's Disease": {
+    "severity": "Severe",
+    "recommendation": "Contact your veterinarian immediately. This chronic bacterial infection requires specialized testing and management.",
+    "urgency": "High",
+    "typical_animals": ["Cow", "Sheep", "Goat"],
+    "description": "Chronic bacterial infection causing progressive weight loss and diarrhea"
+  },
+  "Kennel Cough": {
+    "severity": "Mild",
+    "recommendation": "Symptoms may resolve in 1-2 weeks with rest. Contact your veterinarian if coughing persists or worsens.",
+    "urgency": "Low",
+    "typical_animals": ["Dog"],
+    "description": "Highly contagious respiratory infection causing persistent cough"
+  },
+  "Mastitis": {
+    "severity": "Moderate",
+    "recommendation": "Contact your veterinarian within 24 hours. Monitor udder for heat, swelling, and milk quality.",
+    "urgency": "High",
+    "typical_animals": ["Cow", "Goat", "Sheep"],
+    "description": "Bacterial infection of the mammary gland"
+  },
+  "Myxomatosis": {
+    "severity": "Severe",
+    "recommendation": "Contact your veterinarian immediately. This viral disease is often fatal in rabbits.",
+    "urgency": "Emergency",
+    "typical_animals": ["Rabbit"],
+    "description": "Viral disease causing swelling and skin lesions, often fatal"
+  },
+  "Pancreatitis": {
+    "severity": "Severe",
+    "recommendation": "Take your pet to the emergency clinic immediately. This condition can be life-threatening.",
+    "urgency": "Emergency",
+    "typical_animals": ["Dog", "Cat"],
+    "description": "Inflammation of the pancreas causing severe abdominal pain"
+  },
+  "Panleukopenia": {
+    "severity": "Severe",
+    "recommendation": "Rush to the nearest emergency veterinary clinic immediately. This is often fatal without immediate treatment.",
+    "urgency": "Emergency",
+    "typical_animals": ["Cat"],
+    "description": "Highly contagious viral infection causing severe immune suppression"
+  },
+  "Parvovirus": {
+    "severity": "Severe",
+    "recommendation": "Take your pet to the nearest emergency clinic immediately. Parvovirus can be fatal within hours.",
+    "urgency": "Emergency",
+    "typical_animals": ["Dog"],
+    "description": "Highly contagious viral infection causing severe dehydration and shock"
+  },
+  "Pasteurellosis": {
+    "severity": "Moderate",
+    "recommendation": "Contact your veterinarian within 24 hours. This bacterial infection responds well to antibiotics.",
+    "urgency": "Medium",
+    "typical_animals": ["Rabbit", "Cat", "Dog"],
+    "description": "Bacterial infection causing respiratory and other symptoms"
+  },
+  "Pneumonia": {
+    "severity": "Severe",
+    "recommendation": "Contact your veterinarian immediately. Pneumonia can be life-threatening and requires prompt treatment.",
+    "urgency": "Emergency",
+    "typical_animals": ["Dog", "Cat", "Cow", "Horse", "Sheep", "Goat", "Pig"],
+    "description": "Infection of the lungs causing breathing difficulties"
+  },
+  "Porcine Epidemic Diarrhea": {
+    "severity": "Severe",
+    "recommendation": "Contact your veterinarian immediately. This highly contagious viral disease can cause high mortality in piglets.",
+    "urgency": "Emergency",
+    "typical_animals": ["Pig"],
+    "description": "Highly contagious viral infection causing severe diarrhea and dehydration"
+  },
+  "Rabbit Hemorrhagic Disease": {
+    "severity": "Severe",
+    "recommendation": "Contact your veterinarian immediately. This viral disease is often rapidly fatal in rabbits.",
+    "urgency": "Emergency",
+    "typical_animals": ["Rabbit"],
+    "description": "Highly contagious viral disease causing sudden death"
+  },
+  "Rabbit Syphilis": {
+    "severity": "Moderate",
+    "recommendation": "Schedule veterinary visit within 2-3 days. This bacterial infection is treatable with antibiotics.",
+    "urgency": "Medium",
+    "typical_animals": ["Rabbit"],
+    "description": "Bacterial infection causing skin lesions around genitals"
+  },
+  "Rabbit Viral Hemorrhagic Disease": {
+    "severity": "Severe",
+    "recommendation": "Contact your veterinarian immediately. This is a reportable disease with high mortality rates.",
+    "urgency": "Emergency",
+    "typical_animals": ["Rabbit"],
+    "description": "Rapidly fatal viral disease causing internal bleeding"
+  },
+  "Scrapie": {
+    "severity": "Severe",
+    "recommendation": "Contact authorities and veterinarian immediately. This is a reportable neurological disease.",
+    "urgency": "Emergency",
+    "typical_animals": ["Sheep", "Goat"],
+    "description": "Progressive neurological disease affecting the central nervous system"
+  },
+  "Swine Erysipelas": {
+    "severity": "Severe",
+    "recommendation": "Contact your veterinarian immediately. This bacterial infection can cause sudden death in pigs.",
+    "urgency": "Emergency",
+    "typical_animals": ["Pig"],
+    "description": "Bacterial infection causing skin lesions and systemic illness"
+  },
+  "Swine Fever": {
+    "severity": "Severe",
+    "recommendation": "Contact authorities and veterinarian immediately. This is a highly contagious reportable disease.",
+    "urgency": "Emergency",
+    "typical_animals": ["Pig"],
+    "description": "Highly contagious viral disease with high mortality rates"
+  },
+  "Swine Influenza": {
+    "severity": "Moderate",
+    "recommendation": "Contact your veterinarian within 24 hours. Monitor temperature and provide supportive care.",
+    "urgency": "Medium",
+    "typical_animals": ["Pig"],
+    "description": "Viral respiratory infection causing fever and breathing difficulties"
+  },
+  "Upper Respiratory Infection": {
+    "severity": "Mild",
+    "recommendation": "Monitor symptoms for 3-5 days. If they worsen or persist beyond a week, contact your veterinarian.",
+    "urgency": "Low",
+    "typical_animals": ["Dog", "Cat", "Rabbit"],
+    "description": "Common viral or bacterial infection of the nose, throat, and sinuses"
+  }
+}

@@ -57,8 +57,8 @@ function Contact() {
                   </svg>
                   <div>
                     <h3 className="font-semibold mb-1">Address</h3>
-                    <p>123 Pet Care Lane</p>
-                    <p>Paw City, PC 12345</p>
+                    <p>123 shaheed e milat road </p>
+                    <p>Islamabad</p>
                   </div>
                 </div>
                 
@@ -68,7 +68,7 @@ function Contact() {
                   </svg>
                   <div>
                     <h3 className="font-semibold mb-1">Phone</h3>
-                    <p>(555) 123-4567</p>
+                    <p>051-123123</p>
                   </div>
                 </div>
                 

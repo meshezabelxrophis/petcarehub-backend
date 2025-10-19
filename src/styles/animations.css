@@ -1,0 +1,337 @@
+/* ==========================================================================
+   PETCAREHUB ANIMATIONS - GPU-Optimized & Accessible
+   ========================================================================== */
+
+/* Base Animation Classes - GPU-Friendly */
+.btn-animated {
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+  will-change: transform;
+  transform: translateZ(0); /* Force GPU acceleration */
+}
+
+.btn-animated:hover {
+  transform: scale(1.03) translateZ(0);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.btn-animated:active {
+  transform: scale(0.98) translateZ(0);
+  transition-duration: 0.08s;
+}
+
+.card-animated {
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  will-change: transform, opacity;
+  transform: translateZ(0); /* Force GPU acceleration */
+}
+
+.card-animated:hover {
+  transform: translateY(-6px) translateZ(0);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
+}
+
+/* Subtle Focus States for Accessibility */
+.btn-animated:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+  transform: scale(1.02) translateZ(0);
+}
+
+.card-animated:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+  transform: translateY(-3px) translateZ(0);
+}
+
+/* Loading States */
+.loading-pulse {
+  animation: gentle-pulse 2s ease-in-out infinite;
+  will-change: opacity;
+}
+
+@keyframes gentle-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* Fade Transitions */
+.fade-in {
+  animation: fade-in 0.3s ease-out;
+  will-change: opacity;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.fade-out {
+  animation: fade-out 0.2s ease-in;
+  will-change: opacity;
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Slide Animations */
+.slide-up {
+  animation: slide-up 0.4s ease-out;
+  will-change: transform, opacity;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px) translateZ(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) translateZ(0);
+  }
+}
+
+/* Bounce Animation for Success States */
+.bounce-in {
+  animation: bounce-in 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  will-change: transform, opacity;
+}
+
+@keyframes bounce-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) translateZ(0);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05) translateZ(0);
+  }
+  70% {
+    transform: scale(0.9) translateZ(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateZ(0);
+  }
+}
+
+/* Shake Animation for Error States */
+.shake {
+  animation: shake 0.5s ease-in-out;
+  will-change: transform;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0) translateZ(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px) translateZ(0); }
+  20%, 40%, 60%, 80% { transform: translateX(4px) translateZ(0); }
+}
+
+/* Spinner Animation */
+.spinner {
+  animation: spin 1s linear infinite;
+  will-change: transform;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg) translateZ(0); }
+  to { transform: rotate(360deg) translateZ(0); }
+}
+
+/* Utility Classes */
+.no-animation {
+  animation: none !important;
+  transition: none !important;
+}
+
+.gpu-accelerated {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* ==========================================================================
+   ACCESSIBILITY & PERFORMANCE - SELECTIVE REDUCED MOTION SUPPORT
+   ========================================================================== */
+
+/* Respect user's motion preferences - but keep essential animations */
+@media (prefers-reduced-motion: reduce) {
+  /* Disable decorative transitions but keep functional ones */
+  .btn-animated,
+  .card-animated,
+  .service-btn,
+  .pet-card,
+  .nav-item {
+    transition-duration: 0.01ms !important;
+  }
+
+  /* Keep essential hover states but remove complex animations */
+  .btn-animated:hover {
+    transform: none;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .card-animated:hover {
+    transform: none;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Disable decorative animations but KEEP loading indicators */
+  .bounce-in,
+  .slide-up,
+  .shake {
+    animation: none;
+  }
+
+  /* KEEP loading animations - these are functional, not decorative */
+  .loading-pulse {
+    /* Keep the pulse for loading feedback */
+    animation: gentle-pulse 2s ease-in-out infinite;
+  }
+
+  .spinner {
+    /* Keep spinner rotation - essential for loading states */
+    animation: spin 1s linear infinite;
+  }
+
+  /* Keep fade animations but make them faster */
+  .fade-in,
+  .fade-out {
+    animation-duration: 0.15s;
+  }
+
+  /* Disable scroll behavior changes */
+  * {
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ==========================================================================
+   LOW-END DEVICE OPTIMIZATIONS
+   ========================================================================== */
+
+/* These classes will be applied via JavaScript for low-end devices */
+.low-performance-mode .btn-animated,
+.low-performance-mode .card-animated {
+  transition: none;
+  will-change: auto;
+  transform: none;
+}
+
+.low-performance-mode .btn-animated:hover {
+  transform: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.low-performance-mode .card-animated:hover {
+  transform: none;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Disable decorative animations but KEEP loading animations in low performance mode */
+.low-performance-mode .bounce-in,
+.low-performance-mode .slide-up,
+.low-performance-mode .shake {
+  animation: none !important;
+}
+
+/* KEEP essential loading animations even in low performance mode */
+.low-performance-mode .spinner,
+.low-performance-mode .loading-pulse {
+  /* Keep these animations - they're functional feedback */
+}
+
+/* ==========================================================================
+   COMPONENT-SPECIFIC ANIMATIONS
+   ========================================================================== */
+
+/* Pet Card Hover Effects */
+.pet-card {
+  transition: all 0.2s ease;
+  will-change: transform, box-shadow;
+  transform: translateZ(0);
+}
+
+.pet-card:hover {
+  transform: translateY(-4px) translateZ(0);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+/* Service Button Effects */
+.service-btn {
+  transition: all 0.15s ease;
+  will-change: transform, background-color;
+  transform: translateZ(0);
+}
+
+.service-btn:hover {
+  transform: translateY(-2px) translateZ(0);
+  filter: brightness(1.05);
+}
+
+/* Navigation Hover Effects */
+.nav-item {
+  transition: color 0.2s ease;
+  position: relative;
+}
+
+.nav-item::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background-color: #3b82f6;
+  transition: width 0.3s ease;
+}
+
+.nav-item:hover::after {
+  width: 100%;
+}
+
+/* Form Input Focus Effects */
+.form-input {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* ==========================================================================
+   PERFORMANCE NOTES
+   ========================================================================== */
+
+/*
+  OPTIMIZATION TECHNIQUES USED:
+  
+  1. GPU Acceleration:
+     - transform: translateZ(0) forces GPU layer
+     - will-change hints for upcoming animations
+     - backface-visibility: hidden prevents flickering
+  
+  2. Efficient Properties:
+     - Only animate transform, opacity, filter
+     - Avoid animating layout properties (width, height, margin, padding)
+     - Use transform instead of changing position
+  
+  3. Selective Reduced Motion Support:
+     - Respects prefers-reduced-motion media query
+     - Disables decorative animations (hover effects, bounce, shake)
+     - PRESERVES functional animations (loading spinners, progress indicators)
+     - Provides fallback hover states without motion
+  
+  4. Smart Low-End Device Support:
+     - JavaScript detection for hardware limitations
+     - Disables decorative animations but keeps essential loading feedback
+     - Maintains usability and loading states without complex animations
+  
+  5. Performance Monitoring:
+     - Use browser DevTools to monitor paint/composite
+     - Check for layout thrashing
+     - Validate 60fps on target devices
+     - Essential loading animations always work for user feedback
+*/
