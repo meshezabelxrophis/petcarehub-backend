@@ -5,12 +5,13 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import L from 'leaflet';
 
 const ClinicMap = ({ clinics, userLocation, onClinicSelect }) => {
-  // Default location: Karachi, Pakistan
-  const defaultPosition = [24.8607, 67.0011];
+  // Default location: Islamabad, Pakistan (matches useUserLocation fallback)
+  const defaultPosition = [33.6844, 73.0479];
   const defaultZoom = 12;
   
   const mapRef = useRef();
   const [mapCenter, setMapCenter] = useState(userLocation || defaultPosition);
+  const [mapKey, setMapKey] = useState(0);
 
   // Create custom clinic marker icon
   const createClinicIcon = () => {
@@ -60,9 +61,28 @@ const ClinicMap = ({ clinics, userLocation, onClinicSelect }) => {
 
   // Update map center when user location changes
   useEffect(() => {
-    if (userLocation && mapRef.current) {
-      setMapCenter(userLocation);
-      mapRef.current.setView(userLocation, defaultZoom);
+    if (userLocation && Array.isArray(userLocation) && userLocation.length === 2) {
+      const [lat, lon] = userLocation;
+      const parsedLat = parseFloat(lat);
+      const parsedLon = parseFloat(lon);
+      
+      // Validate coordinates
+      if (!isNaN(parsedLat) && !isNaN(parsedLon) && 
+          parsedLat >= -90 && parsedLat <= 90 && 
+          parsedLon >= -180 && parsedLon <= 180) {
+        console.log('🗺️ Updating map center to:', { lat: parsedLat, lon: parsedLon });
+        const newCenter = [parsedLat, parsedLon];
+        setMapCenter(newCenter);
+        
+        // Force map re-render and re-center
+        setMapKey(prev => prev + 1);
+        
+        if (mapRef.current) {
+          mapRef.current.setView(newCenter, defaultZoom);
+        }
+      } else {
+        console.warn('⚠️ Invalid user location coordinates:', { lat: parsedLat, lon: parsedLon });
+      }
     }
   }, [userLocation]);
 
@@ -85,8 +105,10 @@ const ClinicMap = ({ clinics, userLocation, onClinicSelect }) => {
       onClinicSelect(clinic);
     }
     // Center map on selected clinic
-    if (mapRef.current) {
-      mapRef.current.setView([clinic.latitude, clinic.longitude], 15);
+    const lat = parseFloat(clinic.latitude);
+    const lon = parseFloat(clinic.longitude);
+    if (mapRef.current && !isNaN(lat) && !isNaN(lon)) {
+      mapRef.current.setView([lat, lon], 15);
     }
   };
 
@@ -148,6 +170,7 @@ const ClinicMap = ({ clinics, userLocation, onClinicSelect }) => {
         `}
       </style>
       <MapContainer 
+        key={mapKey} // Force re-render when location changes
         center={mapCenter} 
         zoom={defaultZoom} 
         style={{ width: '100%', height: '500px' }}
@@ -159,51 +182,68 @@ const ClinicMap = ({ clinics, userLocation, onClinicSelect }) => {
         />
         
         {/* User location marker */}
-        {userLocation && (
+        {userLocation && Array.isArray(userLocation) && userLocation.length === 2 && (
           <Marker position={userLocation} icon={createUserIcon()}>
             <Popup>
               <div>
                 <strong>Your Location</strong><br/>
-                Lat: {userLocation[0].toFixed(4)}, Lng: {userLocation[1].toFixed(4)}
+                Lat: {parseFloat(userLocation[0]).toFixed(4)}, Lng: {parseFloat(userLocation[1]).toFixed(4)}
               </div>
             </Popup>
           </Marker>
         )}
         
         {/* Clinic markers */}
-        {clinics.map(clinic => (
-          <Marker 
-            key={clinic.clinic_id} 
-            position={[clinic.latitude, clinic.longitude]} 
-            icon={createClinicIcon()}
-          >
-            <Popup className="clinic-popup">
-              <div>
-                <div className="clinic-name">{clinic.name}</div>
-                <div className="clinic-address">📍 {clinic.address}</div>
-                <div className="clinic-contact">📞 {clinic.contact_number}</div>
-                {userLocation && (
-                  <div className="clinic-distance">
-                    📏 {calculateDistance(
-                      userLocation[0], 
-                      userLocation[1], 
-                      clinic.latitude, 
-                      clinic.longitude
-                    )} km away
+        {clinics
+          .filter(clinic => {
+            const lat = parseFloat(clinic.latitude);
+            const lon = parseFloat(clinic.longitude);
+            const isValid = !isNaN(lat) && !isNaN(lon) && 
+                           lat >= -90 && lat <= 90 && 
+                           lon >= -180 && lon <= 180;
+            if (!isValid) {
+              console.warn('⚠️ Skipping clinic with invalid coordinates:', clinic.name, { lat, lon });
+            }
+            return isValid;
+          })
+          .map(clinic => {
+            const lat = parseFloat(clinic.latitude);
+            const lon = parseFloat(clinic.longitude);
+            
+            return (
+              <Marker 
+                key={clinic.clinic_id} 
+                position={[lat, lon]} 
+                icon={createClinicIcon()}
+              >
+                <Popup className="clinic-popup">
+                  <div>
+                    <div className="clinic-name">{clinic.name}</div>
+                    <div className="clinic-address">📍 {clinic.address}</div>
+                    <div className="clinic-contact">📞 {clinic.contact_number}</div>
+                    {userLocation && Array.isArray(userLocation) && userLocation.length === 2 && (
+                      <div className="clinic-distance">
+                        📏 {calculateDistance(
+                          parseFloat(userLocation[0]), 
+                          parseFloat(userLocation[1]), 
+                          lat, 
+                          lon
+                        )} km away
+                      </div>
+                    )}
+                    {clinic.services && clinic.services.length > 0 && (
+                      <div style={{ marginTop: '8px', fontSize: '12px', color: '#6b7280' }}>
+                        Services: {clinic.services.length} available
+                      </div>
+                    )}
+                    <button onClick={() => handleClinicClick(clinic)}>
+                      View Details
+                    </button>
                   </div>
-                )}
-                {clinic.services && clinic.services.length > 0 && (
-                  <div style={{ marginTop: '8px', fontSize: '12px', color: '#6b7280' }}>
-                    Services: {clinic.services.length} available
-                  </div>
-                )}
-                <button onClick={() => handleClinicClick(clinic)}>
-                  View Details
-                </button>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+                </Popup>
+              </Marker>
+            );
+          })}
       </MapContainer>
     </div>
   );

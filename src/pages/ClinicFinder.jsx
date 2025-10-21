@@ -5,7 +5,7 @@ import useUserLocation from '../hooks/useUserLocation';
 import { API_ENDPOINTS } from '../config/backend';
 
 function ClinicFinder() {
-  const { latitude, longitude, loading: locationLoading, error: locationError, getCurrentLocation } = useUserLocation();
+  const { latitude, longitude, loading: locationLoading, error: locationError, isUsingFallback, getCurrentLocation } = useUserLocation();
   const [clinics, setClinics] = useState([]);
   const [selectedClinic, setSelectedClinic] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -13,8 +13,11 @@ function ClinicFinder() {
   const [searchRadius, setSearchRadius] = useState(10); // km
   const [searchType, setSearchType] = useState('all'); // 'all' or 'nearby'
   
-  // Convert lat/lon to array format for map component
-  const userLocation = latitude && longitude ? [latitude, longitude] : null;
+  // Convert lat/lon to array format for map component - only if valid
+  const userLocation = (latitude !== null && longitude !== null && 
+                        !isNaN(latitude) && !isNaN(longitude)) 
+    ? [parseFloat(latitude), parseFloat(longitude)] 
+    : null;
 
   // Fetch nearby clinics
   const fetchNearbyClinics = useCallback(async (lat, lng) => {
@@ -22,28 +25,42 @@ function ClinicFinder() {
       setLoading(true);
       setError('');
       
+      // Validate and parse coordinates
+      const parsedLat = parseFloat(lat);
+      const parsedLng = parseFloat(lng);
+      
+      if (isNaN(parsedLat) || isNaN(parsedLng)) {
+        throw new Error('Invalid coordinates');
+      }
+      
+      console.log('🔍 Fetching nearby clinics for:', { lat: parsedLat, lng: parsedLng, radius: searchRadius });
+      
       const response = await fetch(
-        `${API_ENDPOINTS.PROVIDERS}?lat=${lat}&lon=${lng}&radius=${searchRadius}`
+        `${API_ENDPOINTS.PROVIDERS}?lat=${parsedLat}&lon=${parsedLng}&radius=${searchRadius}`
       );
       if (!response.ok) throw new Error('Failed to fetch nearby clinics');
       
       const data = await response.json();
       
-      // Transform providers to clinic format
+      console.log('✅ Received', data.length, 'providers');
+      
+      // Transform providers to clinic format with validated coordinates
       const clinicsData = data.map(provider => ({
         clinic_id: provider.id || provider.provider_id,
         name: provider.name,
         address: provider.address || 'Address not provided',
         contact_number: provider.phone || 'N/A',
-        latitude: provider.latitude,
-        longitude: provider.longitude,
+        latitude: parseFloat(provider.latitude),
+        longitude: parseFloat(provider.longitude),
         bio: provider.bio,
         services: []
-      }));
+      })).filter(clinic => 
+        !isNaN(clinic.latitude) && !isNaN(clinic.longitude)
+      );
       
       setClinics(clinicsData);
     } catch (err) {
-      console.error('Error fetching nearby clinics:', err);
+      console.error('❌ Error fetching nearby clinics:', err);
       setError('Failed to load nearby clinics. Please try again later.');
     } finally {
       setLoading(false);
@@ -56,27 +73,33 @@ function ClinicFinder() {
       setLoading(true);
       setError('');
       
+      console.log('🔍 Fetching all clinics');
+      
       // Fetch all providers without location filtering
       const response = await fetch(API_ENDPOINTS.PROVIDERS);
       if (!response.ok) throw new Error('Failed to fetch clinics');
       
       const data = await response.json();
       
-      // Transform providers to clinic format
+      console.log('✅ Received', data.length, 'providers');
+      
+      // Transform providers to clinic format with validated coordinates
       const clinicsData = data.map(provider => ({
         clinic_id: provider.id || provider.provider_id,
         name: provider.name,
         address: provider.address || 'Address not provided',
         contact_number: provider.phone || 'N/A',
-        latitude: provider.latitude,
-        longitude: provider.longitude,
+        latitude: parseFloat(provider.latitude),
+        longitude: parseFloat(provider.longitude),
         bio: provider.bio,
         services: []
-      }));
+      })).filter(clinic => 
+        !isNaN(clinic.latitude) && !isNaN(clinic.longitude)
+      );
       
       setClinics(clinicsData);
     } catch (err) {
-      console.error('Error fetching clinics:', err);
+      console.error('❌ Error fetching clinics:', err);
       setError('Failed to load clinics. Please try again later.');
     } finally {
       setLoading(false);
@@ -85,10 +108,11 @@ function ClinicFinder() {
 
   // Fetch nearby clinics when location changes and search type is nearby
   useEffect(() => {
-    if (searchType === 'nearby' && latitude && longitude) {
+    if (searchType === 'nearby' && latitude !== null && longitude !== null) {
+      console.log('📍 Location changed, fetching nearby clinics:', { latitude, longitude, isUsingFallback });
       fetchNearbyClinics(latitude, longitude);
     }
-  }, [searchType, latitude, longitude, fetchNearbyClinics]);
+  }, [searchType, latitude, longitude, fetchNearbyClinics, isUsingFallback]);
 
   // Initial load
   useEffect(() => {
@@ -112,12 +136,18 @@ function ClinicFinder() {
   // Calculate distance for display
   const calculateDistance = (clinic) => {
     if (!userLocation) return null;
+    
+    const clinicLat = parseFloat(clinic.latitude);
+    const clinicLon = parseFloat(clinic.longitude);
+    
+    if (isNaN(clinicLat) || isNaN(clinicLon)) return null;
+    
     const R = 6371; // Radius of the Earth in kilometers
-    const dLat = (clinic.latitude - userLocation[0]) * (Math.PI / 180);
-    const dLon = (clinic.longitude - userLocation[1]) * (Math.PI / 180);
+    const dLat = (clinicLat - userLocation[0]) * (Math.PI / 180);
+    const dLon = (clinicLon - userLocation[1]) * (Math.PI / 180);
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(userLocation[0] * (Math.PI / 180)) * Math.cos(clinic.latitude * (Math.PI / 180)) *
+      Math.cos(userLocation[0] * (Math.PI / 180)) * Math.cos(clinicLat * (Math.PI / 180)) *
       Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const distance = R * c;
@@ -192,10 +222,30 @@ function ClinicFinder() {
           )}
         </div>
         
-        {(error || locationError) && (
+        {/* Location status indicator */}
+        {searchType === 'nearby' && userLocation && (
+          <div className={`mt-4 p-3 rounded-lg flex items-center space-x-2 ${
+            isUsingFallback 
+              ? 'bg-yellow-50 border border-yellow-200' 
+              : 'bg-green-50 border border-green-200'
+          }`}>
+            <AlertCircle className={`w-5 h-5 ${
+              isUsingFallback ? 'text-yellow-500' : 'text-green-500'
+            }`} />
+            <span className={isUsingFallback ? 'text-yellow-700' : 'text-green-700'}>
+              {isUsingFallback 
+                ? 'Using default location (Islamabad, Pakistan). Click "Use My Location" to update.'
+                : `Using your current location (${latitude.toFixed(4)}°, ${longitude.toFixed(4)}°)`
+              }
+            </span>
+          </div>
+        )}
+        
+        {/* Error messages */}
+        {error && (
           <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
             <AlertCircle className="w-5 h-5 text-red-500" />
-            <span className="text-red-700">{error || locationError}</span>
+            <span className="text-red-700">{error}</span>
           </div>
         )}
       </div>
