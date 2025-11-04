@@ -940,7 +940,7 @@ let petLocationData = {
 };
 
 // Update pet location (for iPhone/GPS tracker)
-app.post('/api/update-pet-location', (req, res) => {
+app.post('/api/update-pet-location', async (req, res) => {
   try {
     const { pet_id, latitude, longitude } = req.body;
     
@@ -964,34 +964,65 @@ app.post('/api/update-pet-location', (req, res) => {
       });
     }
 
-    // Update the stored location data
+    const locationData = {
+      lat: parseFloat(latitude),
+      lng: parseFloat(longitude),
+      lastUpdated: new Date().toISOString()
+    };
+
+    // ✅ NEW: Write to Firebase Realtime Database (for geofencing)
+    try {
+      const locationRef = realtimeDb.ref(`pets/${pet_id}/location`);
+      await locationRef.set(locationData);
+      console.log(`✅ Location saved to Firebase for pet ${pet_id}:`, locationData);
+      
+      // Also write to gps_tracking path for backward compatibility
+      const gpsRef = realtimeDb.ref(`gps_tracking/${pet_id}`);
+      await gpsRef.set(locationData);
+      console.log(`✅ Location also saved to gps_tracking/${pet_id}`);
+    } catch (firebaseError) {
+      console.error('❌ Error writing to Firebase:', firebaseError);
+      // Continue anyway - still broadcast via Socket.IO
+    }
+
+    // Keep in-memory storage for backward compatibility
     petLocationData = {
       pet_id: parseInt(pet_id),
       latitude: parseFloat(latitude),
       longitude: parseFloat(longitude),
-      timestamp: new Date().toISOString()
+      timestamp: locationData.lastUpdated
     };
 
-    console.log('Pet location updated:', petLocationData);
+    console.log('📍 Pet location updated:', petLocationData);
 
-    // Broadcast the location update to all connected clients
+    // Broadcast the location update to all connected clients via Socket.IO
     console.log('📡 Broadcasting location update to', io.engine.clientsCount, 'connected clients');
     io.emit('petLocationUpdate', {
-      latitude: petLocationData.latitude,
-      longitude: petLocationData.longitude,
-      timestamp: petLocationData.timestamp
+      petId: parseInt(pet_id),
+      latitude: locationData.lat,
+      longitude: locationData.lng,
+      timestamp: locationData.lastUpdated
     });
     console.log('✅ Broadcast sent successfully');
 
     res.json({
       success: true,
       message: 'Location updated successfully',
-      data: petLocationData
+      data: {
+        pet_id: parseInt(pet_id),
+        latitude: locationData.lat,
+        longitude: locationData.lng,
+        timestamp: locationData.lastUpdated,
+        savedToFirebase: true
+      }
     });
 
   } catch (error) {
-    console.error('Error updating pet location:', error);
-    res.status(400).json({ error: 'Invalid JSON data' });
+    console.error('❌ Error updating pet location:', error);
+    res.status(500).json({ 
+      error: 'Failed to update location',
+      details: error.message 
+    });
   }
 });
 
