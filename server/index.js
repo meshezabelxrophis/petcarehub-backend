@@ -971,15 +971,18 @@ app.post('/api/update-pet-location', async (req, res) => {
     };
 
     // ✅ NEW: Write to Firebase Realtime Database (for geofencing)
+    // Support both string IDs (Firebase UIDs) and numeric IDs
+    const petIdString = String(pet_id); // Convert to string to support all ID formats
+    
     try {
-      const locationRef = realtimeDb.ref(`pets/${pet_id}/location`);
+      const locationRef = realtimeDb.ref(`pets/${petIdString}/location`);
       await locationRef.set(locationData);
-      console.log(`✅ Location saved to Firebase for pet ${pet_id}:`, locationData);
+      console.log(`✅ Location saved to Firebase for pet ${petIdString}:`, locationData);
       
       // Also write to gps_tracking path for backward compatibility
-      const gpsRef = realtimeDb.ref(`gps_tracking/${pet_id}`);
+      const gpsRef = realtimeDb.ref(`gps_tracking/${petIdString}`);
       await gpsRef.set(locationData);
-      console.log(`✅ Location also saved to gps_tracking/${pet_id}`);
+      console.log(`✅ Location also saved to gps_tracking/${petIdString}`);
     } catch (firebaseError) {
       console.error('❌ Error writing to Firebase:', firebaseError);
       // Continue anyway - still broadcast via Socket.IO
@@ -987,7 +990,7 @@ app.post('/api/update-pet-location', async (req, res) => {
 
     // Keep in-memory storage for backward compatibility
     petLocationData = {
-      pet_id: parseInt(pet_id),
+      pet_id: petIdString, // Keep as string to support Firebase UIDs
       latitude: parseFloat(latitude),
       longitude: parseFloat(longitude),
       timestamp: locationData.lastUpdated
@@ -998,7 +1001,7 @@ app.post('/api/update-pet-location', async (req, res) => {
     // Broadcast the location update to all connected clients via Socket.IO
     console.log('📡 Broadcasting location update to', io.engine.clientsCount, 'connected clients');
     io.emit('petLocationUpdate', {
-      petId: parseInt(pet_id),
+      petId: petIdString, // Broadcast as string
       latitude: locationData.lat,
       longitude: locationData.lng,
       timestamp: locationData.lastUpdated
@@ -1009,7 +1012,7 @@ app.post('/api/update-pet-location', async (req, res) => {
       success: true,
       message: 'Location updated successfully',
       data: {
-        pet_id: parseInt(pet_id),
+        pet_id: petIdString, // Return as string
         latitude: locationData.lat,
         longitude: locationData.lng,
         timestamp: locationData.lastUpdated,

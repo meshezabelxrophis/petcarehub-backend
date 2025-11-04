@@ -47,8 +47,8 @@ function TrackMyPet() {
   }, [fetchPets]);
 
   const handlePetChange = (e) => {
-    const petId = parseInt(e.target.value);
-    const pet = pets.find(p => p.id === petId);
+    const petId = e.target.value; // Keep as string to support Firebase UIDs
+    const pet = pets.find(p => p.id === petId || String(p.id) === petId);
     setSelectedPet(pet);
   };
 
