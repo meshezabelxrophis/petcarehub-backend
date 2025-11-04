@@ -66,22 +66,20 @@ const useSafeZoneMonitoring = (petId, userId) => {
         setLoading(true);
         setError(null);
 
-        // 1. Fetch safe zone from Firestore
+        // 1. Fetch safe zone from Firestore (optional - don't block location tracking)
         console.log(`🔍 Fetching safe zone for user: ${userId}`);
         const zone = await getUserSafeZone(userId);
         
-        if (!zone) {
-          console.log('ℹ️ No safe zone configured for this user');
-          setLoading(false);
-          return;
+        if (zone) {
+          if (mounted) {
+            setSafeZone(zone);
+            console.log('✅ Safe zone loaded:', zone);
+          }
+        } else {
+          console.log('ℹ️ No safe zone configured for this user (location tracking will still work)');
         }
 
-        if (mounted) {
-          setSafeZone(zone);
-          console.log('✅ Safe zone loaded:', zone);
-        }
-
-        // 2. Listen to pet's live location from Realtime Database
+        // 2. Listen to pet's live location from Realtime Database (ALWAYS listen, even without safe zone)
         const locationRef = ref(realtimeDb, `pets/${petId}/location`);
         
         console.log(`📡 Starting real-time monitoring for pet: ${petId}`);
@@ -97,8 +95,14 @@ const useSafeZoneMonitoring = (petId, userId) => {
               console.log(`📍 Pet location update:`, location);
               setPetLocation(location);
               
-              // 3. Check geofence immediately on each update
-              checkGeofence(location, zone);
+              // 3. Check geofence only if safe zone exists
+              if (zone) {
+                checkGeofence(location, zone);
+              } else {
+                // No safe zone, but still track distance as 0 (inside zone)
+                setDistance(0);
+                setIsOutside(false);
+              }
             } else {
               console.log('⚠️ No valid location data found');
             }
@@ -133,6 +137,14 @@ const useSafeZoneMonitoring = (petId, userId) => {
       }
     };
   }, [petId, userId, checkGeofence]);
+
+  // Re-check geofence when safe zone is loaded (in case it was loaded after location)
+  useEffect(() => {
+    if (safeZone && petLocation) {
+      console.log('🔄 Re-checking geofence with newly loaded safe zone');
+      checkGeofence(petLocation, safeZone);
+    }
+  }, [safeZone, petLocation, checkGeofence]);
 
   return {
     isOutside,
