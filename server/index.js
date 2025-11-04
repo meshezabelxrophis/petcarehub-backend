@@ -941,15 +941,34 @@ let petLocationData = {
 
 // Update pet location (for iPhone/GPS tracker)
 app.post('/api/update-pet-location', async (req, res) => {
+  console.log('\n🚀 ==========================================');
+  console.log('📱 iPhone Location Update Received!');
+  console.log('==========================================\n');
+  console.log('📥 Request received at:', new Date().toISOString());
+  console.log('📦 Request body:', JSON.stringify(req.body, null, 2));
+  console.log('🌐 Request origin:', req.headers.origin || req.headers.referer || 'Direct API call');
+  console.log('👤 User agent:', req.headers['user-agent'] || 'Unknown');
+  
   try {
     const { pet_id, latitude, longitude } = req.body;
     
+    console.log('\n📊 Extracted data:');
+    console.log('   Pet ID:', pet_id, `(type: ${typeof pet_id})`);
+    console.log('   Latitude:', latitude, `(type: ${typeof latitude})`);
+    console.log('   Longitude:', longitude, `(type: ${typeof longitude})`);
+    
     // Validate required fields
     if (!pet_id || !latitude || !longitude) {
+      console.error('❌ Validation failed: Missing required fields');
+      console.error('   pet_id:', pet_id ? '✅' : '❌ MISSING');
+      console.error('   latitude:', latitude !== undefined ? '✅' : '❌ MISSING');
+      console.error('   longitude:', longitude !== undefined ? '✅' : '❌ MISSING');
       return res.status(400).json({
         error: 'Missing required fields: pet_id, latitude, longitude'
       });
     }
+    
+    console.log('✅ Validation passed: All required fields present');
 
     // Validate coordinate ranges
     if (latitude < -90 || latitude > 90) {
@@ -970,21 +989,34 @@ app.post('/api/update-pet-location', async (req, res) => {
       lastUpdated: new Date().toISOString()
     };
 
+    console.log('\n📍 Processed location data:');
+    console.log('   lat:', locationData.lat);
+    console.log('   lng:', locationData.lng);
+    console.log('   timestamp:', locationData.lastUpdated);
+
     // ✅ NEW: Write to Firebase Realtime Database (for geofencing)
     // Support both string IDs (Firebase UIDs) and numeric IDs
     const petIdString = String(pet_id); // Convert to string to support all ID formats
     
+    console.log('\n🔥 Writing to Firebase Realtime Database...');
+    console.log('   Pet ID (string):', petIdString);
+    console.log('   Path 1: /pets/' + petIdString + '/location');
+    console.log('   Path 2: /gps_tracking/' + petIdString);
+    
     try {
       const locationRef = realtimeDb.ref(`pets/${petIdString}/location`);
       await locationRef.set(locationData);
-      console.log(`✅ Location saved to Firebase for pet ${petIdString}:`, locationData);
+      console.log(`✅ SUCCESS: Location saved to Firebase at /pets/${petIdString}/location`);
+      console.log('   Data:', JSON.stringify(locationData, null, 2));
       
       // Also write to gps_tracking path for backward compatibility
       const gpsRef = realtimeDb.ref(`gps_tracking/${petIdString}`);
       await gpsRef.set(locationData);
-      console.log(`✅ Location also saved to gps_tracking/${petIdString}`);
+      console.log(`✅ SUCCESS: Location also saved to /gps_tracking/${petIdString}`);
     } catch (firebaseError) {
-      console.error('❌ Error writing to Firebase:', firebaseError);
+      console.error('❌ ERROR: Failed to write to Firebase');
+      console.error('   Error details:', firebaseError.message);
+      console.error('   Stack:', firebaseError.stack);
       // Continue anyway - still broadcast via Socket.IO
     }
 
@@ -996,19 +1028,23 @@ app.post('/api/update-pet-location', async (req, res) => {
       timestamp: locationData.lastUpdated
     };
 
-    console.log('📍 Pet location updated:', petLocationData);
+    console.log('\n💾 In-memory storage updated:');
+    console.log('   Data:', JSON.stringify(petLocationData, null, 2));
 
     // Broadcast the location update to all connected clients via Socket.IO
-    console.log('📡 Broadcasting location update to', io.engine.clientsCount, 'connected clients');
+    const connectedClients = io.engine.clientsCount;
+    console.log('\n📡 Broadcasting via Socket.IO...');
+    console.log('   Connected clients:', connectedClients);
+    
     io.emit('petLocationUpdate', {
       petId: petIdString, // Broadcast as string
       latitude: locationData.lat,
       longitude: locationData.lng,
       timestamp: locationData.lastUpdated
     });
-    console.log('✅ Broadcast sent successfully');
+    console.log('✅ Broadcast sent successfully to', connectedClients, 'client(s)');
 
-    res.json({
+    const responseData = {
       success: true,
       message: 'Location updated successfully',
       data: {
@@ -1018,10 +1054,26 @@ app.post('/api/update-pet-location', async (req, res) => {
         timestamp: locationData.lastUpdated,
         savedToFirebase: true
       }
-    });
+    };
+
+    console.log('\n✅ Response sent to iPhone:');
+    console.log('   Status: 200 OK');
+    console.log('   Data:', JSON.stringify(responseData, null, 2));
+    console.log('\n🎉 ==========================================');
+    console.log('✅ iPhone Location Update Complete!');
+    console.log('==========================================\n');
+
+    res.json(responseData);
 
   } catch (error) {
-    console.error('❌ Error updating pet location:', error);
+    console.error('\n❌ ==========================================');
+    console.error('❌ ERROR: Failed to update pet location');
+    console.error('==========================================');
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
+    console.error('   Request body:', JSON.stringify(req.body, null, 2));
+    console.error('==========================================\n');
+    
     res.status(500).json({ 
       error: 'Failed to update location',
       details: error.message 
