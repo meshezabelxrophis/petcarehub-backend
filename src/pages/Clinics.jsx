@@ -14,7 +14,7 @@ L.Icon.Default.mergeOptions({
 });
 
 function Clinics() {
-  const { latitude, longitude, loading: locationLoading, error: locationError } = useUserLocation();
+  const { latitude, longitude, loading: locationLoading, error: locationError, isUsingFallback, getCurrentLocation } = useUserLocation();
   const [clinics, setClinics] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -39,7 +39,8 @@ function Clinics() {
 
   // Fetch clinics when location is available
   useEffect(() => {
-    if (latitude && longitude) {
+    if (latitude !== null && longitude !== null) {
+      console.log('🔍 Fetching clinics for location:', { latitude, longitude, isUsingFallback });
       fetchClinics(latitude, longitude);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -50,14 +51,26 @@ function Clinics() {
       setLoading(true);
       setError('');
       
+      // Ensure coordinates are valid numbers
+      const parsedLat = parseFloat(lat);
+      const parsedLon = parseFloat(lon);
+      
+      if (isNaN(parsedLat) || isNaN(parsedLon)) {
+        throw new Error('Invalid coordinates');
+      }
+      
+      console.log('🌐 Fetching providers from:', `${API_ENDPOINTS.PROVIDERS}?lat=${parsedLat}&lon=${parsedLon}&radius=10`);
+      
       // Fetch only service providers (they are our "clinics")
-      const response = await fetch(`${API_ENDPOINTS.PROVIDERS}?lat=${lat}&lon=${lon}&radius=10`);
+      const response = await fetch(`${API_ENDPOINTS.PROVIDERS}?lat=${parsedLat}&lon=${parsedLon}&radius=10`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch providers');
       }
       
       const providersData = await response.json();
+      
+      console.log('✅ Received', providersData.length, 'providers');
       
       // Format all service providers as clinics and add location names
       const clinicsWithLocations = await Promise.all(
@@ -66,10 +79,14 @@ function Clinics() {
           .map(async (provider) => {
             let displayAddress = provider.address;
             
+            // Parse and validate provider coordinates
+            const providerLat = parseFloat(provider.latitude);
+            const providerLon = parseFloat(provider.longitude);
+            
             // If provider has coordinates but no proper address, get location name
-            if (provider.latitude && provider.longitude && 
+            if (!isNaN(providerLat) && !isNaN(providerLon) && 
                 (!provider.address || provider.address === 'Address not provided' || provider.address.length < 10)) {
-              const locationName = await getLocationName(provider.latitude, provider.longitude);
+              const locationName = await getLocationName(providerLat, providerLon);
               if (locationName) {
                 displayAddress = locationName;
               }
@@ -80,8 +97,8 @@ function Clinics() {
               name: provider.name,
               address: displayAddress,
               contact_number: provider.phone,
-              latitude: provider.latitude,
-              longitude: provider.longitude,
+              latitude: providerLat,
+              longitude: providerLon,
               bio: provider.bio,
               services: [] // Would need separate API call to get provider services if needed
             };
@@ -90,7 +107,7 @@ function Clinics() {
       
       setClinics(clinicsWithLocations);
     } catch (err) {
-      console.error('Error fetching providers:', err);
+      console.error('❌ Error fetching providers:', err);
       setError('Failed to load nearby providers. Please try again later.');
     } finally {
       setLoading(false);
@@ -108,55 +125,10 @@ function Clinics() {
     );
   }
 
-  // Manual location request handler
+  // Manual location request handler - uses the hook's function
   const handleGetLocation = () => {
-    if (navigator.geolocation) {
-      setLoading(true);
-      setError(''); // Clear any previous errors
-      
-      console.log('Requesting location...');
-      
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const lat = position.coords.latitude;
-          const lon = position.coords.longitude;
-          console.log('✅ Got user location:', lat, lon);
-          console.log('Accuracy:', position.coords.accuracy, 'meters');
-          fetchClinics(lat, lon);
-          setLoading(false);
-        },
-        (error) => {
-          console.error('❌ Location error:', error);
-          
-          let errorMessage = 'Could not get your location. ';
-          
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              errorMessage += 'Location access was denied. Please allow location access in your browser settings and try again.';
-              break;
-            case error.POSITION_UNAVAILABLE:
-              errorMessage += 'Your location is currently unavailable. Please check your internet connection and try again.';
-              break;
-            case error.TIMEOUT:
-              errorMessage += 'Location request timed out. Please try again.';
-              break;
-            default:
-              errorMessage += `Error code: ${error.code}. Please try refreshing the page.`;
-              break;
-          }
-          
-          setError(errorMessage);
-          setLoading(false);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 15000, // Increased timeout
-          maximumAge: 0
-        }
-      );
-    } else {
-      setError('Geolocation is not supported by your browser. Please use a modern browser like Chrome, Firefox, or Safari.');
-    }
+    setError(''); // Clear any previous errors
+    getCurrentLocation(); // Use the hook's function to get fresh location
   };
 
   return (
@@ -184,16 +156,36 @@ function Clinics() {
         </button>
       </div>
       
-      {/* Show location warning if there's an error, but don't block the UI */}
-      {locationError && (
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-start space-x-3">
-          <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+      {/* Show current location info */}
+      {latitude && longitude && (
+        <div className={`mb-6 p-4 rounded-lg flex items-start space-x-3 ${
+          isUsingFallback 
+            ? 'bg-yellow-50 border border-yellow-200' 
+            : 'bg-green-50 border border-green-200'
+        }`}>
+          <AlertCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+            isUsingFallback ? 'text-yellow-600' : 'text-green-600'
+          }`} />
           <div className="flex-1">
-            <p className="text-blue-800 font-medium">Using Default Location</p>
-            <p className="text-blue-700 text-sm mt-1">Showing providers near Islamabad, Pakistan (default location).</p>
-            <p className="text-blue-600 text-sm mt-2">
-              💡 <strong>To see providers near you:</strong> Click the "Use My Location" button above and allow location access when prompted.
+            <p className={`font-medium ${isUsingFallback ? 'text-yellow-800' : 'text-green-800'}`}>
+              {isUsingFallback ? 'Using Default Location' : 'Location Detected'}
             </p>
+            <p className={`text-sm mt-1 ${isUsingFallback ? 'text-yellow-700' : 'text-green-700'}`}>
+              {isUsingFallback 
+                ? 'Showing providers near Islamabad, Pakistan (default location).' 
+                : `Showing providers near your current location (${latitude.toFixed(4)}°, ${longitude.toFixed(4)}°)`
+              }
+            </p>
+            {isUsingFallback && (
+              <p className="text-yellow-600 text-sm mt-2">
+                💡 <strong>To see providers near you:</strong> Click the "Use My Location" button above and allow location access when prompted.
+              </p>
+            )}
+            {locationError && (
+              <p className="text-sm mt-2 text-gray-600">
+                <strong>Note:</strong> {locationError}
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -290,11 +282,12 @@ function Clinics() {
         <div>
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Map View</h2>
           <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-            {latitude && longitude && (
+            {latitude !== null && longitude !== null && !isNaN(latitude) && !isNaN(longitude) ? (
               <MapContainer
+                key={`${latitude}-${longitude}`} // Force re-render when location changes
                 center={[latitude, longitude]}
                 zoom={13}
-                style={{ height: '400px', width: '100%' }}
+                style={{ height: '500px', width: '100%' }}
               >
                 <TileLayer
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -303,24 +296,49 @@ function Clinics() {
                 
                 {/* User location marker */}
                 <Marker position={[latitude, longitude]}>
-                  <Popup>Your Location</Popup>
+                  <Popup>
+                    <div className="text-center">
+                      <strong>Your Location</strong>
+                      <br />
+                      <span className="text-xs text-gray-600">
+                        {latitude.toFixed(6)}°, {longitude.toFixed(6)}°
+                      </span>
+                      {isUsingFallback && (
+                        <>
+                          <br />
+                          <span className="text-xs text-yellow-600">(Default location)</span>
+                        </>
+                      )}
+                    </div>
+                  </Popup>
                 </Marker>
                 
                 {/* Provider markers */}
                 {clinics
-                  .filter(clinic => clinic.latitude && clinic.longitude && !isNaN(clinic.latitude) && !isNaN(clinic.longitude))
+                  .filter(clinic => {
+                    const lat = parseFloat(clinic.latitude);
+                    const lon = parseFloat(clinic.longitude);
+                    const isValid = !isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+                    if (!isValid) {
+                      console.warn('⚠️ Invalid clinic coordinates:', clinic.name, { lat, lon });
+                    }
+                    return isValid;
+                  })
                   .map((clinic) => {
-                    console.log('Rendering marker for:', clinic.name, 'at', clinic.latitude, clinic.longitude);
+                    const lat = parseFloat(clinic.latitude);
+                    const lon = parseFloat(clinic.longitude);
+                    console.log('📍 Rendering marker for:', clinic.name, 'at', { lat, lon });
                     return (
                     <Marker
                       key={clinic.clinic_id}
-                      position={[parseFloat(clinic.latitude), parseFloat(clinic.longitude)]}
+                      position={[lat, lon]}
                     >
                     <Popup>
                       <div className="text-center p-2">
                         <h3 className="font-semibold text-gray-900 mb-2">
                           {clinic.name}
                         </h3>
+                        <p className="text-xs text-gray-600 mb-2">{clinic.address}</p>
                         <div className="flex gap-2">
                           <a
                             href={`/providers/${clinic.clinic_id}`}
@@ -341,6 +359,13 @@ function Clinics() {
                     );
                   })}
               </MapContainer>
+            ) : (
+              <div className="h-96 flex items-center justify-center bg-gray-50">
+                <div className="text-center">
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-teal-600" />
+                  <p className="text-gray-600">Loading map...</p>
+                </div>
+              </div>
             )}
           </div>
         </div>

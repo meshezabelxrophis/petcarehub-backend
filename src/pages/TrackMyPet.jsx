@@ -1,15 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import PetMap from '../components/PetMap';
-import { MapPin, AlertCircle, PawPrint } from 'lucide-react';
+import PetMapWithGeofence from '../components/PetMapWithGeofence';
+import SafeZoneModal from '../components/SafeZoneModal';
+import { MapPin, AlertCircle, PawPrint, Shield } from 'lucide-react';
 import { API_ENDPOINTS } from '../config/backend';
+import { gpsTrackingService } from '../services/realtimeDatabase';
 
 function TrackMyPet() {
-  const { currentUser } = useAuth();
+  const { currentUser, userId } = useAuth();
   const [pets, setPets] = useState([]);
   const [selectedPet, setSelectedPet] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isSafeZoneModalOpen, setIsSafeZoneModalOpen] = useState(false);
+  const [currentPetLocation, setCurrentPetLocation] = useState(null);
 
   const fetchPets = useCallback(async () => {
     try {
@@ -46,6 +51,23 @@ function TrackMyPet() {
     const pet = pets.find(p => p.id === petId);
     setSelectedPet(pet);
   };
+
+  // Fetch current pet location for safe zone
+  useEffect(() => {
+    if (selectedPet?.id) {
+      const fetchPetLocation = async () => {
+        try {
+          const location = await gpsTrackingService.getLocation(selectedPet.id);
+          if (location) {
+            setCurrentPetLocation({ lat: location.lat, lng: location.lng });
+          }
+        } catch (error) {
+          console.log('Could not fetch pet location:', error);
+        }
+      };
+      fetchPetLocation();
+    }
+  }, [selectedPet]);
 
   if (loading) {
     return (
@@ -132,6 +154,22 @@ function TrackMyPet() {
               </div>
             )}
           </div>
+          
+          {/* Set Safe Zone Button */}
+          {selectedPet && (
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => setIsSafeZoneModalOpen(true)}
+                className="w-full sm:w-auto flex items-center justify-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-teal-600 to-teal-700 text-white rounded-lg hover:from-teal-700 hover:to-teal-800 transition-all shadow-md hover:shadow-lg"
+              >
+                <Shield size={20} />
+                <span className="font-medium">Set Safe Zone</span>
+              </button>
+              <p className="text-xs text-gray-500 mt-2">
+                Get alerts when {selectedPet.name} leaves the safe zone
+              </p>
+            </div>
+          )}
         </div>
 
         {/* GPS Tracking Map */}
@@ -147,7 +185,8 @@ function TrackMyPet() {
             </div>
             
             <div className="p-2 sm:p-4 lg:p-6">
-              <PetMap petId={selectedPet.id} petName={selectedPet.name} />
+              {/* Use PetMapWithGeofence for real-time safe zone monitoring */}
+              <PetMapWithGeofence petId={selectedPet.id} petName={selectedPet.name} />
             </div>
             
             {/* Pet Info */}
@@ -179,6 +218,15 @@ function TrackMyPet() {
           </div>
         )}
       </div>
+
+      {/* Safe Zone Modal */}
+      <SafeZoneModal
+        isOpen={isSafeZoneModalOpen}
+        onClose={() => setIsSafeZoneModalOpen(false)}
+        currentLocation={currentPetLocation}
+        petName={selectedPet?.name}
+        userId={userId || currentUser?.uid || currentUser?.id}
+      />
     </div>
   );
 }
