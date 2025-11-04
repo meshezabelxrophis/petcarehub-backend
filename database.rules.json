@@ -35,6 +35,32 @@
       }
     },
     
+    "pets": {
+      "$petId": {
+        "location": {
+          ".read": "auth != null",
+          ".write": "auth != null",
+          ".validate": "newData.hasChildren(['lat', 'lng', 'lastUpdated'])",
+          "lat": {
+            ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90"
+          },
+          "lng": {
+            ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180"
+          },
+          "lastUpdated": {
+            ".validate": "newData.isString() || newData.val() == null"
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
+        "$other": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        }
+      }
+    },
+    
     "messages": {
       "$chatId": {
         ".read": "auth != null",
