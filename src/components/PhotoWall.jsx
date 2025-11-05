@@ -101,43 +101,34 @@ export default function PhotoWall({ userId = null, petId = null }) {
 
   return (
     <>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-1 md:gap-2 bg-gray-50 p-1 md:p-2">
+      {/* VSCO-style minimal grid - tight spacing, clean aesthetic */}
+      <div className="grid grid-cols-3 gap-[2px] bg-white">
         {posts.map((post) => (
           <div
             key={post.id}
             onClick={() => setSelectedPost(post)}
-            className="relative aspect-square cursor-pointer group overflow-hidden bg-black"
+            className="relative aspect-square cursor-pointer group overflow-hidden bg-gray-100"
           >
             {/* Image */}
             <img
               src={post.imageUrl}
               alt={post.caption || "Pet photo"}
               loading="lazy"
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110 group-hover:opacity-80"
+              className="w-full h-full object-cover transition-opacity duration-200 group-hover:opacity-90"
             />
             
-            {/* Hover Overlay */}
-            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-300 flex items-center justify-center opacity-0 group-hover:opacity-100">
-              <div className="flex items-center space-x-4 text-white">
+            {/* Minimal hover overlay - VSCO style */}
+            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-opacity duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
+              <div className="flex items-center space-x-3 text-white drop-shadow-lg">
                 <div className="flex items-center">
-                  <FiHeart className="mr-1" size={20} />
-                  <span className="font-semibold">{post.likesCount || 0}</span>
+                  <FiHeart className="mr-1" size={18} />
+                  <span className="font-medium text-sm">{post.likesCount || 0}</span>
                 </div>
                 <div className="flex items-center">
-                  <FiMessageCircle className="mr-1" size={20} />
-                  <span className="font-semibold">{post.commentsCount || 0}</span>
+                  <FiMessageCircle className="mr-1" size={18} />
+                  <span className="font-medium text-sm">{post.commentsCount || 0}</span>
                 </div>
               </div>
-            </div>
-
-            {/* Pet Name Badge */}
-            <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded-full">
-              {post.petName || "Pet"}
-            </div>
-
-            {/* Time Badge */}
-            <div className="absolute top-2 right-2 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-              {formatTimestamp(post.createdAt)}
             </div>
           </div>
         ))}
@@ -153,4 +144,5 @@ export default function PhotoWall({ userId = null, petId = null }) {
     </>
   );
 }
+
 

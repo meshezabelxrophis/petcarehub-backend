@@ -20,10 +20,10 @@ export default function Leaderboard() {
 
   useEffect(() => {
     // Query top 10 posts by likes count
+    // Note: Requires Firestore index - will be prompted on first load
     const q = query(
       collection(db, "posts"),
       orderBy("likesCount", "desc"),
-      orderBy("createdAt", "desc"),
       limit(10)
     );
 
