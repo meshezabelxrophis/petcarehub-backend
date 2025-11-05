@@ -40,50 +40,21 @@ const PetMapWithGeofence = ({ petId, petName }) => {
 
   // Update map position when pet location changes
   useEffect(() => {
-    console.log('\n🗺️ ==========================================');
-    console.log('🗺️ Map Update Triggered');
-    console.log('==========================================');
-    console.log('   Pet ID:', petId);
-    console.log('   Pet name:', petName);
-    console.log('   Pet location:', petLocation);
-    console.log('   Has lat?', !!petLocation?.lat);
-    console.log('   Has lng?', !!petLocation?.lng);
-    
     if (petLocation?.lat && petLocation?.lng) {
       const newPosition = [petLocation.lat, petLocation.lng];
-      console.log('   ✅ Valid location, updating map');
-      console.log('   New position:', newPosition);
-      console.log('   Current position:', position);
-      console.log('   Is edit mode?', isEditMode);
-      
       setPosition(newPosition);
       setMarkerKey((prev) => prev + 1);
-      console.log('   ✅ Position and marker updated');
 
       // Smooth pan to new location (only if not in edit mode)
       if (mapRef.current && !isEditMode) {
-        console.log('   ✅ Panning map to new location');
         mapRef.current.panTo(newPosition, {
           animate: true,
           duration: 1.0,
           easeLinearity: 0.2,
         });
-        console.log('   ✅ Map panned successfully');
-      } else {
-        if (!mapRef.current) {
-          console.log('   ⚠️ Map ref not available yet');
-        }
-        if (isEditMode) {
-          console.log('   ℹ️ Edit mode active, skipping pan');
-        }
       }
-      console.log('==========================================\n');
-    } else {
-      console.log('   ⚠️ Invalid location data - not updating map');
-      console.log('   Location object:', petLocation);
-      console.log('==========================================\n');
     }
-  }, [petLocation, isEditMode, petId, petName, position]);
+  }, [petLocation, isEditMode]);
 
   // Handle save from SafeZoneEditor
   const handleSaveSafeZone = async (newZone) => {

@@ -50,6 +50,7 @@ function Navbar() {
               <>
                 <Link to="/my-pets" className="font-medium text-gray-700 hover:text-teal-600 transition-colors">My Pets</Link>
                 <Link to="/clinics" className="font-medium text-gray-700 hover:text-teal-600 transition-colors">Find Clinics</Link>
+                <Link to="/pet-photos/feed" className="font-medium text-gray-700 hover:text-teal-600 transition-colors">Pet Photos 📸</Link>
               </>
             )}
             
@@ -116,6 +117,13 @@ function Navbar() {
                         onClick={() => setDropdownOpen(false)}
                       >
                         📍 Track My Pet
+                      </Link>
+                      <Link 
+                        to="/pet-photos/feed" 
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => setDropdownOpen(false)}
+                      >
+                        📸 Pet Photos
                       </Link>
                       <Link 
                         to="/disease-predictor" 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Maximize2, Save, Loader2 } from 'lucide-react';
+import { Maximize2, Save, Loader2, ChevronUp, ChevronDown } from 'lucide-react';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
@@ -18,6 +18,7 @@ const RadiusSlider = ({
   const [isSaving, setIsSaving] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // Update local radius when safeZone prop changes
   useEffect(() => {
@@ -91,14 +92,34 @@ const RadiusSlider = ({
   if (!safeZone) return null;
 
   return (
-    <motion.div
-      initial={{ y: 100, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      exit={{ y: 100, opacity: 0 }}
-      className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-[998]"
-      style={{ width: 'calc(100% - 2rem)', maxWidth: '600px' }}
-    >
-      <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-4 border border-gray-200">
+    <>
+      {/* Toggle Button - Bottom Right Corner */}
+      <motion.button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="absolute bottom-4 right-4 z-[998] bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full shadow-2xl transition-colors"
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+      >
+        <div className="flex items-center space-x-2">
+          <Maximize2 size={20} />
+          {isExpanded ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+        </div>
+      </motion.button>
+
+      {/* Expandable Panel */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="absolute bottom-20 right-4 z-[998]"
+            style={{ width: 'calc(100% - 2rem)', maxWidth: '600px' }}
+          >
+            <div 
+              className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-4 border border-gray-200"
+              onClick={(e) => e.stopPropagation()}
+            >
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center space-x-2">
@@ -157,10 +178,23 @@ const RadiusSlider = ({
             step="10"
             value={radius}
             onChange={handleSliderChange}
-            onMouseDown={() => setIsDragging(true)}
-            onMouseUp={() => setIsDragging(false)}
-            onTouchStart={() => setIsDragging(true)}
-            onTouchEnd={() => setIsDragging(false)}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setIsDragging(true);
+            }}
+            onMouseUp={(e) => {
+              e.stopPropagation();
+              setIsDragging(false);
+            }}
+            onTouchStart={(e) => {
+              e.stopPropagation();
+              setIsDragging(true);
+            }}
+            onTouchEnd={(e) => {
+              e.stopPropagation();
+              setIsDragging(false);
+            }}
             className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer slider-enhanced"
             style={{
               background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(radius - 50) / 1950 * 100}%, #e5e7eb ${(radius - 50) / 1950 * 100}%, #e5e7eb 100%)`
@@ -179,7 +213,11 @@ const RadiusSlider = ({
           {[100, 200, 300, 500, 1000, 2000].map((preset) => (
             <button
               key={preset}
-              onClick={() => handleQuickPreset(preset)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleQuickPreset(preset);
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
               className={`px-2 py-1.5 text-xs font-medium rounded-lg transition-all ${
                 radius === preset
                   ? 'bg-blue-500 text-white shadow-md'
@@ -195,7 +233,10 @@ const RadiusSlider = ({
         <p className="text-xs text-center text-gray-500 mt-3">
           Drag slider or click preset to adjust • Auto-saves in 1 second
         </p>
-      </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Enhanced Slider Styles */}
       <style>{`
@@ -242,7 +283,7 @@ const RadiusSlider = ({
           box-shadow: 0 4px 20px rgba(59, 130, 246, 0.8);
         }
       `}</style>
-    </motion.div>
+    </>
   );
 };
 

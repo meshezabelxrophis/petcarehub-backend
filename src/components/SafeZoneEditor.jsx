@@ -60,6 +60,17 @@ const SafeZoneEditor = ({
     useMapEvents({
       click: (e) => {
         if (isEditing) {
+          // Check if click originated from control panel
+          const target = e.originalEvent?.target;
+          if (target) {
+            // Check if click is from control panel or any of its children
+            const isFromControlPanel = target.closest('.safe-zone-control-panel');
+            if (isFromControlPanel) {
+              // Ignore clicks from control panel
+              return;
+            }
+          }
+          
           setCenter([e.latlng.lat, e.latlng.lng]);
           setShowInstructions(false);
         }
@@ -175,7 +186,7 @@ const SafeZoneEditor = ({
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 100, opacity: 0 }}
-        className="leaflet-bottom leaflet-center"
+        className="leaflet-bottom leaflet-center safe-zone-control-panel"
         style={{
           position: 'absolute',
           bottom: '20px',
@@ -184,8 +195,17 @@ const SafeZoneEditor = ({
           zIndex: 1000,
           pointerEvents: 'auto'
         }}
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onMouseUp={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
       >
-        <div className="bg-white rounded-xl shadow-2xl p-4 sm:p-6 border-2 border-blue-500 min-w-[320px] sm:min-w-[400px]">
+        <div 
+          className="bg-white rounded-xl shadow-2xl p-4 sm:p-6 border-2 border-blue-500 min-w-[320px] sm:min-w-[400px] safe-zone-control-panel"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-2">
@@ -227,6 +247,11 @@ const SafeZoneEditor = ({
               step="10"
               value={radius}
               onChange={(e) => setRadius(parseInt(e.target.value))}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
               style={{
                 background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(radius - 10) / 490 * 100}%, #e5e7eb ${(radius - 10) / 490 * 100}%, #e5e7eb 100%)`
@@ -238,7 +263,11 @@ const SafeZoneEditor = ({
               {[50, 100, 200, 300].map((preset) => (
                 <button
                   key={preset}
-                  onClick={() => setRadius(preset)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRadius(preset);
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
                   className={`flex-1 px-2 py-1 text-xs rounded ${
                     radius === preset
                       ? 'bg-blue-500 text-white'
@@ -254,14 +283,26 @@ const SafeZoneEditor = ({
           {/* Action Buttons */}
           <div className="flex space-x-3">
             <button
-              onClick={onCancel}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onCancel();
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
               className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium flex items-center justify-center space-x-2"
             >
               <X size={18} />
               <span>Cancel</span>
             </button>
             <button
-              onClick={handleSave}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                handleSave();
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
               className="flex-1 px-4 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium flex items-center justify-center space-x-2 shadow-md"
             >
               <Check size={18} />
@@ -305,6 +346,19 @@ const SafeZoneEditor = ({
 
         .center-marker {
           cursor: pointer;
+        }
+
+        /* Prevent click-through on control panel */
+        .safe-zone-control-panel {
+          pointer-events: all !important;
+        }
+        
+        .safe-zone-control-panel * {
+          pointer-events: all !important;
+        }
+        
+        .leaflet-bottom.leaflet-center > div {
+          pointer-events: all !important;
         }
       `}</style>
     </>

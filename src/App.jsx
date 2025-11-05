@@ -45,6 +45,11 @@ import PaymentExample from "./examples/PaymentExample";
 import AIChatExample from "./examples/AIChatExample";
 import LiveTrackingExample from "./examples/LiveTrackingExample";
 
+// Pet Photos feature
+import PetPhotosFeed from "./pages/PetPhotosFeed";
+import PetPhotosUpload from "./pages/PetPhotosUpload";
+import Leaderboard from "./pages/Leaderboard";
+
 // Protected route component for authenticated users
 const ProtectedRoute = ({ children, requiredRole }) => {
   const { currentUser, isPetOwner, isServiceProvider } = useAuth();
@@ -141,6 +146,18 @@ function AppContent() {
             <Route path="/examples/payment" element={<PaymentExample />} />
             <Route path="/examples/chat" element={<AIChatExample />} />
             <Route path="/examples/tracking" element={<LiveTrackingExample />} />
+            
+            {/* Pet Photos routes - public feed, protected upload */}
+            <Route path="/pet-photos/feed" element={<PetPhotosFeed />} />
+            <Route path="/pet-photos/leaderboard" element={<Leaderboard />} />
+            <Route 
+              path="/pet-photos/upload" 
+              element={
+                <ProtectedRoute requiredRole="petOwner">
+                  <PetPhotosUpload />
+                </ProtectedRoute>
+              } 
+            />
             
             {/* Protected routes - require authentication */}
             <Route 
@@ -280,6 +297,18 @@ function AppContent() {
                 <Route path="/examples/payment" element={<PaymentExample />} />
                 <Route path="/examples/chat" element={<AIChatExample />} />
                 <Route path="/examples/tracking" element={<LiveTrackingExample />} />
+                
+                {/* Pet Photos routes - public feed, protected upload */}
+                <Route path="/pet-photos/feed" element={<PetPhotosFeed />} />
+                <Route path="/pet-photos/leaderboard" element={<Leaderboard />} />
+                <Route 
+                  path="/pet-photos/upload" 
+                  element={
+                    <ProtectedRoute requiredRole="petOwner">
+                      <PetPhotosUpload />
+                    </ProtectedRoute>
+                  } 
+                />
                 
                 {/* Protected routes - require authentication */}
                 <Route 

@@ -81,84 +81,40 @@ const useSafeZoneMonitoring = (petId, userId) => {
 
         // 2. Listen to pet's live location from Realtime Database (ALWAYS listen, even without safe zone)
         const locationRef = ref(realtimeDb, `pets/${petId}/location`);
-        const firebasePath = `pets/${petId}/location`;
         
-        console.log('\n🚀 ==========================================');
-        console.log('📡 Starting real-time monitoring for pet');
-        console.log('==========================================');
-        console.log('   Pet ID:', petId);
-        console.log('   Pet ID type:', typeof petId);
-        console.log('   Firebase path:', firebasePath);
-        console.log('   User ID:', userId);
-        console.log('==========================================\n');
+        console.log(`📡 Starting real-time monitoring for pet: ${petId}`);
         
         locationUnsubscribe = onValue(
           locationRef,
           (snapshot) => {
-            if (!mounted) {
-              console.log('⚠️ Component unmounted, ignoring update');
-              return;
-            }
+            if (!mounted) return;
 
             const location = snapshot.val();
             
-            console.log('\n📍 ==========================================');
-            console.log('📍 Firebase Location Update Received!');
-            console.log('==========================================');
-            console.log('   Pet ID:', petId);
-            console.log('   Firebase path:', firebasePath);
-            console.log('   Raw data:', location);
-            console.log('   Data type:', typeof location);
-            
             if (location && location.lat && location.lng) {
-              console.log('   ✅ Valid location data found');
-              console.log('   Lat:', location.lat);
-              console.log('   Lng:', location.lng);
-              console.log('   Last updated:', location.lastUpdated);
-              console.log('==========================================\n');
-              
               console.log(`📍 Pet location update:`, location);
               setPetLocation(location);
               
               // 3. Check geofence only if safe zone exists
               if (zone) {
-                console.log('🛡️ Safe zone exists, checking geofence...');
                 checkGeofence(location, zone);
               } else {
-                console.log('ℹ️ No safe zone, skipping geofence check');
                 // No safe zone, but still track distance as 0 (inside zone)
                 setDistance(0);
                 setIsOutside(false);
               }
             } else {
-              console.log('   ⚠️ Invalid or missing location data');
-              console.log('   Location object:', location);
-              if (location) {
-                console.log('   Has lat?', !!location.lat);
-                console.log('   Has lng?', !!location.lng);
-                console.log('   Keys:', Object.keys(location || {}));
-              }
-              console.log('==========================================\n');
               console.log('⚠️ No valid location data found');
             }
 
             setLoading(false);
           },
           (error) => {
-            console.error('\n❌ ==========================================');
-            console.error('❌ Error listening to pet location');
-            console.error('==========================================');
-            console.error('   Pet ID:', petId);
-            console.error('   Firebase path:', firebasePath);
-            console.error('   Error message:', error.message);
-            console.error('   Error code:', error.code);
-            console.error('==========================================\n');
+            console.error('❌ Error listening to pet location:', error);
             setError(error.message);
             setLoading(false);
           }
         );
-        
-        console.log('✅ Firebase listener attached successfully');
 
       } catch (err) {
         console.error('❌ Error setting up safe zone monitoring:', err);

@@ -1,74 +1,29 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Helper functions
-    function isAuthenticated() {
-      return request.auth != null;
+    
+    // ========================================================================
+    // Pet Posts (Photo Wall)
+    // Public read, authenticated write to own folder
+    // ========================================================================
+    
+    match /pet_posts/{userId}/{fileName} {
+      // Anyone can read pet photos (public feed)
+      allow read: if true;
+      
+      // Only authenticated user can write to their own folder
+      allow write: if request.auth != null 
+        && request.auth.uid == userId
+        && request.resource.size < 10 * 1024 * 1024  // 10MB max
+        && request.resource.contentType.matches('image/.*');  // Only images
     }
     
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-    
-    function isValidImageUpload() {
-      return request.resource.size < 5 * 1024 * 1024 && // 5MB max
-             request.resource.contentType.matches('image/.*');
-    }
-    
-    function isValidDocumentUpload() {
-      return request.resource.size < 10 * 1024 * 1024 && // 10MB max
-             (request.resource.contentType.matches('application/pdf') ||
-              request.resource.contentType.matches('image/.*'));
-    }
-    
-    // User profile images
-    match /users/{userId}/profile/{imageId} {
-      allow read: if true; // Public read
-      allow write: if isAuthenticated() && 
-                     isOwner(userId) && 
-                     isValidImageUpload();
-      allow delete: if isAuthenticated() && isOwner(userId);
-    }
-    
-    // Pet images
-    match /pets/{petId}/images/{imageId} {
-      allow read: if true; // Public read
-      allow write: if isAuthenticated() && isValidImageUpload();
-      allow delete: if isAuthenticated();
-    }
-    
-    // Service provider images
-    match /services/{serviceId}/images/{imageId} {
-      allow read: if true; // Public read
-      allow write: if isAuthenticated() && isValidImageUpload();
-      allow delete: if isAuthenticated();
-    }
-    
-    // Medical records
-    match /pets/{petId}/medical/{documentId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isValidDocumentUpload();
-      allow delete: if isAuthenticated();
-    }
-    
-    // Chat media
-    match /chat/{roomId}/{mediaId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isValidImageUpload();
-      allow delete: if isAuthenticated();
-    }
-    
-    // Clinic images
-    match /clinics/{clinicId}/images/{imageId} {
-      allow read: if true; // Public read
-      allow write: if isAuthenticated() && isValidImageUpload();
-      allow delete: if isAuthenticated();
-    }
-    
+    // ========================================================================
     // Default deny all other paths
+    // ========================================================================
+    
     match /{allPaths=**} {
       allow read, write: if false;
     }
   }
 }
-
