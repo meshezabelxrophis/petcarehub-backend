@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { ref, onValue, off } from 'firebase/database';
 import { realtimeDb } from '../config/firebase';
 import { getUserSafeZone, haversineDistance } from '../utils/safeZoneHelper';
+import { notifyGeofenceAlert } from '../services/notificationService';
 
 /**
  * Custom hook for real-time safe zone monitoring
@@ -13,13 +14,14 @@ import { getUserSafeZone, haversineDistance } from '../utils/safeZoneHelper';
  * @param {string} userId - User ID to fetch safe zone
  * @returns {object} { isOutside, distance, safeZone, petLocation, loading }
  */
-const useSafeZoneMonitoring = (petId, userId) => {
+const useSafeZoneMonitoring = (petId, userId, petName = "Your pet") => {
   const [isOutside, setIsOutside] = useState(false);
   const [distance, setDistance] = useState(null);
   const [safeZone, setSafeZone] = useState(null);
   const [petLocation, setPetLocation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [lastNotificationStatus, setLastNotificationStatus] = useState(null);
 
   // Calculate if pet is outside safe zone
   const checkGeofence = useCallback((location, zone) => {
@@ -41,12 +43,28 @@ const useSafeZoneMonitoring = (petId, userId) => {
       // Pet is OUTSIDE safe zone
       if (!isOutside) {
         console.warn(`⚠️ GEOFENCE BREACH: Pet is ${Math.round(dist - zone.radius)}m outside safe zone`);
+        
+        // Send notification only once when status changes
+        if (lastNotificationStatus !== 'outside') {
+          notifyGeofenceAlert(userId, petName, 'outside').catch(err => 
+            console.error('Failed to send geofence alert:', err)
+          );
+          setLastNotificationStatus('outside');
+        }
       }
       setIsOutside(true);
     } else {
       // Pet is INSIDE safe zone
       if (isOutside) {
         console.log(`✅ GEOFENCE RESTORED: Pet returned to safe zone`);
+        
+        // Send notification when pet returns to safe zone
+        if (lastNotificationStatus !== 'inside') {
+          notifyGeofenceAlert(userId, petName, 'inside').catch(err => 
+            console.error('Failed to send safe zone notification:', err)
+          );
+          setLastNotificationStatus('inside');
+        }
       }
       setIsOutside(false);
     }

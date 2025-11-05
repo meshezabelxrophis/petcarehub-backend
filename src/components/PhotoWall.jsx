@@ -102,36 +102,40 @@ export default function PhotoWall({ userId = null, petId = null }) {
   return (
     <>
       {/* VSCO-style minimal grid - tight spacing, clean aesthetic */}
-      <div className="grid grid-cols-3 gap-[2px] bg-white">
-        {posts.map((post) => (
-          <div
-            key={post.id}
-            onClick={() => setSelectedPost(post)}
-            className="relative aspect-square cursor-pointer group overflow-hidden bg-gray-100"
-          >
-            {/* Image */}
-            <img
-              src={post.imageUrl}
-              alt={post.caption || "Pet photo"}
-              loading="lazy"
-              className="w-full h-full object-cover transition-opacity duration-200 group-hover:opacity-90"
-            />
-            
-            {/* Minimal hover overlay - VSCO style */}
-            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-opacity duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
-              <div className="flex items-center space-x-3 text-white drop-shadow-lg">
-                <div className="flex items-center">
-                  <FiHeart className="mr-1" size={18} />
-                  <span className="font-medium text-sm">{post.likesCount || 0}</span>
-                </div>
-                <div className="flex items-center">
-                  <FiMessageCircle className="mr-1" size={18} />
-                  <span className="font-medium text-sm">{post.commentsCount || 0}</span>
+      <div className="w-full">
+        <div className="grid grid-cols-3 gap-[3px] bg-white">
+          {posts.map((post) => (
+            <div
+              key={post.id}
+              onClick={() => setSelectedPost(post)}
+              className="relative aspect-square cursor-pointer group overflow-hidden bg-gray-100"
+              style={{ width: '100%', paddingBottom: '100%', position: 'relative' }}
+            >
+              {/* Image */}
+              <img
+                src={post.imageUrl}
+                alt={post.caption || "Pet photo"}
+                loading="lazy"
+                className="absolute inset-0 w-full h-full object-cover transition-opacity duration-200 group-hover:opacity-90"
+                style={{ objectFit: 'cover' }}
+              />
+              
+              {/* Minimal hover overlay - VSCO style */}
+              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-opacity duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                <div className="flex items-center space-x-3 text-white drop-shadow-lg">
+                  <div className="flex items-center">
+                    <FiHeart className="mr-1" size={16} />
+                    <span className="font-medium text-sm">{post.likesCount || 0}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <FiMessageCircle className="mr-1" size={16} />
+                    <span className="font-medium text-sm">{post.commentsCount || 0}</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       {/* Photo Modal */}

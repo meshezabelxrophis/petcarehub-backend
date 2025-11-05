@@ -22,6 +22,10 @@ import {
   deleteComment,
 } from "../lib/postActions";
 import {
+  notifyPostLiked,
+  notifyPostCommented,
+} from "../services/notificationService";
+import {
   FiX,
   FiHeart,
   FiMessageCircle,
@@ -93,6 +97,12 @@ export default function PhotoModal({ post, onClose }) {
     try {
       const result = await toggleLike(post.id, currentUser.uid);
       setIsLiked(result.liked);
+      
+      // Send notification to post owner (only if liking, not unliking)
+      if (result.liked && post.userId !== currentUser.uid) {
+        const likerName = currentUser.displayName || currentUser.email || "Someone";
+        await notifyPostLiked(post.userId, likerName, post.id, post.petName);
+      }
     } catch (error) {
       console.error("Error toggling like:", error);
     }
@@ -105,12 +115,19 @@ export default function PhotoModal({ post, onClose }) {
 
     setSubmitting(true);
     try {
+      const commenterName = currentUser.displayName || currentUser.email || "Anonymous";
       await addComment(
         post.id,
         currentUser.uid,
-        currentUser.displayName || currentUser.email || "Anonymous",
+        commenterName,
         newComment
       );
+      
+      // Send notification to post owner (only if not commenting on own post)
+      if (post.userId !== currentUser.uid) {
+        await notifyPostCommented(post.userId, commenterName, newComment, post.id, post.petName);
+      }
+      
       setNewComment("");
     } catch (error) {
       console.error("Error adding comment:", error);

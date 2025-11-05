@@ -319,9 +319,14 @@ service cloud.firestore {
       // Authenticated users can create posts
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       
-      // Only the owner or admin can update
+      // Allow updates if:
+      // 1. Owner updating their own post (can edit all fields)
+      // 2. Authenticated users updating ONLY likesCount/commentsCount/updatedAt fields
       allow update: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid || isAdmin()
+        resource.data.userId == request.auth.uid || 
+        isAdmin() ||
+        // Allow updating only counter fields (for likes/comments)
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount', 'commentsCount', 'updatedAt']))
       );
       
       // Only the owner or admin can delete
@@ -354,6 +359,30 @@ service cloud.firestore {
           resource.data.userId == request.auth.uid || isAdmin()
         );
       }
+    }
+    
+    // ========================================================================
+    // Notifications Collection
+    // Users can read/update their own notifications
+    // Any authenticated user can create notifications (for sending to others)
+    // ========================================================================
+    
+    match /notifications/{notificationId} {
+      // Users can read their own notifications, admins can read all
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+      
+      // Any authenticated user can create notifications (to notify others)
+      allow create: if isAuthenticated();
+      
+      // Users can update their own notifications (mark as read)
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      
+      // Users can delete their own notifications
+      allow delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
     }
     
     // ========================================================================
