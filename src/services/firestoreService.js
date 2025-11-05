@@ -32,6 +32,8 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 
+import { notifyBookingConfirmed, notifyProviderNewBooking } from './notificationService';
+
 // ============================================
 // USER OPERATIONS
 // ============================================
@@ -83,10 +85,11 @@ export const updateUserProfile = async (userId, data) => {
  */
 export const createBooking = async (bookingData) => {
   try {
+    const userId = auth.currentUser?.uid;
     const bookingsRef = collection(db, 'bookings');
     const docRef = await addDoc(bookingsRef, {
       ...bookingData,
-      userId: auth.currentUser?.uid,
+      userId,
       status: 'pending',
       paymentStatus: 'pending',
       createdAt: serverTimestamp(),
@@ -94,6 +97,28 @@ export const createBooking = async (bookingData) => {
     });
     
     console.log('✅ Booking created:', docRef.id);
+    
+    // Send notifications
+    if (userId && bookingData.serviceName && bookingData.scheduledDate) {
+      // Notify user that booking was created
+      await notifyBookingConfirmed(userId, bookingData.serviceName, bookingData.scheduledDate).catch(err =>
+        console.error('Failed to send booking notification:', err)
+      );
+      
+      // Notify provider of new booking
+      if (bookingData.providerId && auth.currentUser) {
+        const customerName = auth.currentUser.displayName || auth.currentUser.email || 'A customer';
+        await notifyProviderNewBooking(
+          bookingData.providerId, 
+          customerName, 
+          bookingData.serviceName, 
+          bookingData.scheduledDate
+        ).catch(err =>
+          console.error('Failed to send provider notification:', err)
+        );
+      }
+    }
+    
     return docRef.id;
   } catch (error) {
     console.error('Error creating booking:', error);

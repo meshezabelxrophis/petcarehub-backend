@@ -5,7 +5,8 @@
 
 import { createPaymentIntent, storeToFirestore } from '../config/api';
 import { db } from '../config/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { notifyPaymentSuccess } from './notificationService';
 
 /**
  * Process payment for a booking
@@ -87,6 +88,16 @@ export const confirmPayment = async (paymentIntentId, bookingId) => {
   try {
     console.log('🔄 Confirming payment...', { paymentIntentId, bookingId });
     
+    // Get booking details first for notification
+    let bookingData = null;
+    if (bookingId) {
+      const bookingRef = doc(db, 'bookings', bookingId);
+      const bookingSnap = await getDoc(bookingRef);
+      if (bookingSnap.exists()) {
+        bookingData = { id: bookingSnap.id, ...bookingSnap.data() };
+      }
+    }
+    
     // Update booking payment status in Firestore (Firebase direct)
     if (bookingId) {
       const bookingRef = doc(db, 'bookings', bookingId);
@@ -110,6 +121,15 @@ export const confirmPayment = async (paymentIntentId, bookingId) => {
     });
     
     console.log('✅ Payment confirmed');
+    
+    // Send payment success notification
+    if (bookingData && bookingData.userId) {
+      const serviceName = bookingData.serviceName || 'Service';
+      const amount = bookingData.amount || 0;
+      await notifyPaymentSuccess(bookingData.userId, serviceName, amount).catch(err =>
+        console.error('Failed to send payment notification:', err)
+      );
+    }
     
     return { success: true };
   } catch (error) {

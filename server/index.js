@@ -9,6 +9,7 @@ const axios = require('axios');
 
 // Firestore setup (replacing SQLite)
 const { db: firestoreDb, realtimeDb } = require('./config/firebaseAdmin');
+const NotificationService = require('./services/notificationService');
 const {
   UserService,
   PetService,
@@ -670,6 +671,32 @@ app.post('/api/bookings', async (req, res) => {
     
     console.log(`✅ New booking created: ${bookingDetails.owner_name} booked ${bookingDetails.service_name} with provider ${bookingDetails.provider_name}`);
     
+    // Send notifications (async, don't wait)
+    (async () => {
+      try {
+        // Notify pet owner that booking was created
+        await NotificationService.notifyBookingConfirmed(
+          pet_owner_id,
+          service.name,
+          booking_date
+        );
+        
+        // Notify provider of new booking
+        if (finalProviderId && owner) {
+          const customerName = owner.name || owner.email || 'A customer';
+          await NotificationService.notifyProviderNewBooking(
+            finalProviderId,
+            customerName,
+            service.name,
+            booking_date
+          );
+        }
+      } catch (err) {
+        console.error('⚠️  Error sending booking notifications:', err);
+        // Don't fail the request if notifications fail
+      }
+    })();
+    
     res.status(201).json(bookingDetails);
   } catch (error) {
     console.error('❌ Error creating booking:', error);
@@ -827,11 +854,44 @@ app.put('/api/bookings/:id', async (req, res) => {
   }
   
   try {
+    // Get booking details before updating (for notifications)
+    const booking = await BookingService.getBookingById(bookingId);
+    
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+    
     // Update booking in Firestore
     const updated = await BookingService.updateBooking(bookingId, { status });
     
     if (!updated) {
       return res.status(404).json({ error: 'Booking not found' });
+    }
+    
+    // Send notification when provider confirms booking
+    if (status === 'confirmed' && booking.userId && booking.providerId) {
+      (async () => {
+        try {
+          // Get provider details
+          const provider = await UserService.getUserById(booking.providerId);
+          const providerName = provider?.name || provider?.email || 'Provider';
+          
+          // Get service details
+          const service = await ServiceOffering.getServiceById(booking.serviceId);
+          const serviceName = service?.name || 'Service';
+          
+          // Notify pet owner that provider confirmed
+          await NotificationService.notifyProviderConfirmedBooking(
+            booking.userId,
+            providerName,
+            serviceName,
+            booking.bookingDate || booking.scheduledDate
+          );
+        } catch (err) {
+          console.error('⚠️  Error sending provider confirmation notification:', err);
+          // Don't fail the request if notifications fail
+        }
+      })();
     }
     
     res.json({ 

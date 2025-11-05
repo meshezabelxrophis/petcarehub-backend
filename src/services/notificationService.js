@@ -162,7 +162,7 @@ export async function notifyPostLiked(postOwnerId, likerName, postId, petName) {
   
   return sendNotification(postOwnerId, {
     title: "New Like ❤️",
-    body: `${likerName} liked ${petName}'s photo!`,
+    body: `${likerName} liked your photo`,
     type: "like",
     relatedId: postId,
     senderName: likerName,
@@ -192,8 +192,8 @@ export async function notifyGeofenceAlert(ownerId, petName, status) {
   
   const title = status === "outside" ? "⚠️ Geofence Alert!" : "✅ Back in Safe Zone";
   const body = status === "outside" 
-    ? `${petName} has left the safe zone!`
-    : `${petName} is back in the safe zone.`;
+    ? `${petName} just went outside the safe zone`
+    : `${petName} is back to safe zone`;
   
   return sendNotification(ownerId, {
     title,

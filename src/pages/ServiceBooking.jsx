@@ -116,7 +116,7 @@ function ServiceBooking() {
     try {
       // Create booking data with all necessary information
       const bookingData = {
-        pet_owner_id: currentUser?.id || 2, // Default to mock user ID 2
+        pet_owner_id: currentUser?.uid || currentUser?.id, // Use Firebase Auth UID
         service_id: service.id,
         pet_id: selectedPet, // This is now a number
         booking_date: bookingDate,
