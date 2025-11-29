@@ -2,19 +2,42 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/**/*.js",
+      "src": "api/index.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/generate-ai-response.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/create-payment-intent.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/store-ai-output.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
+      "src": "/api",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/api/generate-ai-response",
+      "dest": "/api/generate-ai-response.js"
+    },
+    {
+      "src": "/api/create-payment-intent",
+      "dest": "/api/create-payment-intent.js"
+    },
+    {
+      "src": "/api/store-ai-output",
+      "dest": "/api/store-ai-output.js"
     }
   ],
-  "env": {
-    "NODE_ENV": "production"
-  },
-  "regions": ["iad1"]
+  "installCommand": "cd api && npm install"
 }
+
+
 

@@ -1,16 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Circle, useMapEvents, Marker } from 'react-leaflet';
+import React, { useState, useEffect } from 'react';
+import { Circle, Marker } from '@react-google-maps/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X, MapPin, Maximize2, Info } from 'lucide-react';
-import L from 'leaflet';
-import { renderToStaticMarkup } from 'react-dom/server';
 
 /**
- * SafeZoneEditor - Interactive map-based safe zone editor
+ * SafeZoneEditor - Interactive map-based safe zone editor for Google Maps
  * 
  * Features:
  * - Click map to set center
- * - Draggable circle
+ * - Draggable marker
  * - Radius slider
  * - Visual preview
  * - Confirm/Cancel actions
@@ -20,90 +18,42 @@ const SafeZoneEditor = ({
   onSave, 
   onCancel, 
   initialZone,
-  currentPetLocation 
+  currentPetLocation,
+  map 
 }) => {
   const [center, setCenter] = useState(
     initialZone 
-      ? [initialZone.lat, initialZone.lng] 
+      ? { lat: initialZone.lat, lng: initialZone.lng }
       : currentPetLocation 
-        ? [currentPetLocation.lat, currentPetLocation.lng]
-        : [33.6844, 73.0479]
+        ? { lat: currentPetLocation.lat, lng: currentPetLocation.lng }
+        : { lat: 33.6844, lng: 73.0479 }
   );
   const [radius, setRadius] = useState(initialZone?.radius || 100);
-  const [isDragging, setIsDragging] = useState(false);
   const [showInstructions, setShowInstructions] = useState(true);
-  const circleRef = useRef();
-
-  // Create center marker icon
-  const createCenterIcon = () => {
-    const iconMarkup = renderToStaticMarkup(
-      <div style={{
-        width: '24px',
-        height: '24px',
-        background: '#3b82f6',
-        border: '3px solid white',
-        borderRadius: '50%',
-        boxShadow: '0 2px 8px rgba(59, 130, 246, 0.4)',
-      }} />
-    );
-    
-    return L.divIcon({
-      html: iconMarkup,
-      iconSize: [24, 24],
-      iconAnchor: [12, 12],
-      className: 'center-marker'
-    });
-  };
 
   // Handle map clicks to set new center
-  const MapClickHandler = () => {
-    useMapEvents({
-      click: (e) => {
-        if (isEditing) {
-          // Check if click originated from control panel
-          const target = e.originalEvent?.target;
-          if (target) {
-            // Check if click is from control panel or any of its children
-            const isFromControlPanel = target.closest('.safe-zone-control-panel');
-            if (isFromControlPanel) {
-              // Ignore clicks from control panel
-              return;
-            }
-          }
-          
-          setCenter([e.latlng.lat, e.latlng.lng]);
-          setShowInstructions(false);
-        }
-      },
-    });
-    return null;
-  };
-
-  // Handle circle drag
   useEffect(() => {
-    if (circleRef.current && isEditing) {
-      const circle = circleRef.current;
-      
-      circle.on('dragstart', () => {
-        setIsDragging(true);
+    if (map && isEditing) {
+      const listener = map.addListener('click', (e) => {
+        const clickedLat = e.latLng.lat();
+        const clickedLng = e.latLng.lng();
+        setCenter({ lat: clickedLat, lng: clickedLng });
+        setShowInstructions(false);
       });
-      
-      circle.on('drag', (e) => {
-        const newCenter = e.target.getLatLng();
-        setCenter([newCenter.lat, newCenter.lng]);
-      });
-      
-      circle.on('dragend', () => {
-        setIsDragging(false);
-      });
+
+      return () => {
+        if (listener) {
+          window.google.maps.event.removeListener(listener);
+        }
+      };
     }
-  }, [isEditing]);
+  }, [map, isEditing]);
 
   // Handle save
   const handleSave = () => {
     onSave({
-      lat: center[0],
-      lng: center[1],
+      lat: center.lat,
+      lng: center.lng,
       radius: radius
     });
   };
@@ -122,28 +72,34 @@ const SafeZoneEditor = ({
 
   return (
     <>
-      {/* Map Click Handler */}
-      <MapClickHandler />
-
-      {/* Center Marker (Draggable Circle Center) */}
+      {/* Center Marker (Draggable) */}
       <Marker 
-        position={center} 
-        icon={createCenterIcon()}
+        position={center}
+        draggable={true}
+        onDragEnd={(e) => {
+          setCenter({ lat: e.latLng.lat(), lng: e.latLng.lng() });
+        }}
+        icon={{
+          path: window.google?.maps?.SymbolPath?.CIRCLE,
+          fillColor: '#3b82f6',
+          fillOpacity: 1,
+          strokeWeight: 3,
+          strokeColor: '#ffffff',
+          scale: 10,
+        }}
       />
 
       {/* Draggable Safe Zone Circle */}
       <Circle
-        ref={circleRef}
         center={center}
         radius={radius}
-        draggable={true}
-        pathOptions={{
-          color: '#3b82f6',
+        options={{
+          strokeColor: '#3b82f6',
+          strokeOpacity: 0.8,
+          strokeWeight: 3,
           fillColor: '#3b82f6',
           fillOpacity: 0.15,
-          weight: 3,
-          dashArray: '10, 5',
-          className: 'editing-circle'
+          clickable: false,
         }}
       />
 
@@ -154,7 +110,6 @@ const SafeZoneEditor = ({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="leaflet-top leaflet-right"
             style={{
               position: 'absolute',
               top: '80px',
@@ -170,7 +125,7 @@ const SafeZoneEditor = ({
                   <p className="font-semibold mb-1">How to set safe zone:</p>
                   <ul className="text-xs space-y-1 text-blue-100">
                     <li>• Click map to set center</li>
-                    <li>• Drag circle to move</li>
+                    <li>• Drag blue marker to move</li>
                     <li>• Adjust radius with slider</li>
                     <li>• Click confirm to save</li>
                   </ul>
@@ -186,7 +141,7 @@ const SafeZoneEditor = ({
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 100, opacity: 0 }}
-        className="leaflet-bottom leaflet-center safe-zone-control-panel"
+        className="safe-zone-control-panel"
         style={{
           position: 'absolute',
           bottom: '20px',
@@ -196,15 +151,10 @@ const SafeZoneEditor = ({
           pointerEvents: 'auto'
         }}
         onClick={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}
-        onMouseUp={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        onTouchEnd={(e) => e.stopPropagation()}
       >
         <div 
-          className="bg-white rounded-xl shadow-2xl p-4 sm:p-6 border-2 border-blue-500 min-w-[320px] sm:min-w-[400px] safe-zone-control-panel"
+          className="bg-white rounded-xl shadow-2xl p-4 sm:p-6 border-2 border-blue-500 min-w-[320px] sm:min-w-[400px]"
           onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
@@ -212,18 +162,13 @@ const SafeZoneEditor = ({
               <MapPin size={20} className="text-blue-600" />
               <h3 className="font-bold text-gray-900">Safe Zone Editor</h3>
             </div>
-            {isDragging && (
-              <span className="text-xs text-blue-600 animate-pulse">
-                Dragging...
-              </span>
-            )}
           </div>
 
           {/* Center Coordinates */}
           <div className="mb-4 p-3 bg-gray-50 rounded-lg">
             <p className="text-xs text-gray-500 mb-1">Center Position</p>
             <p className="text-sm font-mono text-gray-900">
-              {center[0].toFixed(6)}, {center[1].toFixed(6)}
+              {center.lat.toFixed(6)}, {center.lng.toFixed(6)}
             </p>
           </div>
 
@@ -248,10 +193,6 @@ const SafeZoneEditor = ({
               value={radius}
               onChange={(e) => setRadius(parseInt(e.target.value))}
               onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-              onMouseUp={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
-              onTouchEnd={(e) => e.stopPropagation()}
               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
               style={{
                 background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(radius - 10) / 490 * 100}%, #e5e7eb ${(radius - 10) / 490 * 100}%, #e5e7eb 100%)`
@@ -267,7 +208,6 @@ const SafeZoneEditor = ({
                     e.stopPropagation();
                     setRadius(preset);
                   }}
-                  onMouseDown={(e) => e.stopPropagation()}
                   className={`flex-1 px-2 py-1 text-xs rounded ${
                     radius === preset
                       ? 'bg-blue-500 text-white'
@@ -288,8 +228,6 @@ const SafeZoneEditor = ({
                 e.preventDefault();
                 onCancel();
               }}
-              onMouseDown={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
               className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium flex items-center justify-center space-x-2"
             >
               <X size={18} />
@@ -301,8 +239,6 @@ const SafeZoneEditor = ({
                 e.preventDefault();
                 handleSave();
               }}
-              onMouseDown={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
               className="flex-1 px-4 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium flex items-center justify-center space-x-2 shadow-md"
             >
               <Check size={18} />
@@ -312,7 +248,7 @@ const SafeZoneEditor = ({
 
           {/* Helper Text */}
           <p className="text-xs text-center text-gray-500 mt-3">
-            Click map to reposition • Drag circle to move
+            Click map to reposition • Drag marker to move
           </p>
         </div>
       </motion.div>
@@ -340,14 +276,6 @@ const SafeZoneEditor = ({
           box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
         }
 
-        .editing-circle {
-          cursor: move;
-        }
-
-        .center-marker {
-          cursor: pointer;
-        }
-
         /* Prevent click-through on control panel */
         .safe-zone-control-panel {
           pointer-events: all !important;
@@ -356,14 +284,9 @@ const SafeZoneEditor = ({
         .safe-zone-control-panel * {
           pointer-events: all !important;
         }
-        
-        .leaflet-bottom.leaflet-center > div {
-          pointer-events: all !important;
-        }
       `}</style>
     </>
   );
 };
 
 export default SafeZoneEditor;
-

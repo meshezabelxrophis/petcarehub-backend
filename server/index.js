@@ -610,7 +610,18 @@ app.put('/api/providers/:id/profile', async (req, res) => {
 // Create a new booking
 app.post('/api/bookings', async (req, res) => {
   try {
-    const { pet_owner_id, service_id, pet_id, booking_date, provider_id } = req.body;
+    const { 
+      pet_owner_id, 
+      service_id, 
+      pet_id, 
+      pet_ids, 
+      pet_names, 
+      booking_date, 
+      provider_id,
+      total_price,
+      base_price,
+      number_of_pets
+    } = req.body;
     
     console.log('Creating new booking with data:', req.body);
     
@@ -633,12 +644,17 @@ app.post('/api/bookings', async (req, res) => {
       userId: pet_owner_id,
       serviceId: service_id,
       petId: pet_id,
+      petIds: pet_ids || [pet_id], // Store array of pet IDs
+      petNames: pet_names || [], // Store array of pet names
       providerId: finalProviderId,
       bookingDate: booking_date,
       scheduledDate: booking_date,
       status: 'pending',
       paymentStatus: 'pending',
-      stripeSessionId: null
+      stripeSessionId: null,
+      totalPrice: total_price || service.price, // Store calculated total price
+      basePrice: base_price || service.price, // Store base service price
+      numberOfPets: number_of_pets || 1 // Store number of pets
     };
     
     const newBooking = await BookingService.createBooking(bookingData);
@@ -655,11 +671,16 @@ app.post('/api/bookings', async (req, res) => {
       pet_owner_id: pet_owner_id,
       service_id: service_id,
       pet_id: pet_id,
+      pet_ids: pet_ids || [pet_id],
+      pet_names: pet_names || [pet?.name || 'Unknown Pet'],
       booking_date: booking_date,
       status: 'pending',
       payment_status: 'pending',
       service_name: service.name,
       price: service.price,
+      total_price: total_price || service.price,
+      base_price: base_price || service.price,
+      number_of_pets: number_of_pets || 1,
       provider_id: finalProviderId,
       provider_name: provider?.name || 'Unknown Provider',
       pet_name: pet?.name || 'Unknown Pet',
@@ -669,7 +690,7 @@ app.post('/api/bookings', async (req, res) => {
       message: 'Booking created successfully!'
     };
     
-    console.log(`✅ New booking created: ${bookingDetails.owner_name} booked ${bookingDetails.service_name} with provider ${bookingDetails.provider_name}`);
+    console.log(`✅ New booking created: ${bookingDetails.owner_name} booked ${bookingDetails.service_name} with provider ${bookingDetails.provider_name} for ${number_of_pets || 1} pet(s)`);
     
     // Send notifications (async, don't wait)
     (async () => {
@@ -684,10 +705,11 @@ app.post('/api/bookings', async (req, res) => {
         // Notify provider of new booking
         if (finalProviderId && owner) {
           const customerName = owner.name || owner.email || 'A customer';
+          const petInfo = number_of_pets > 1 ? `${number_of_pets} pets` : '1 pet';
           await NotificationService.notifyProviderNewBooking(
             finalProviderId,
             customerName,
-            service.name,
+            `${service.name} (${petInfo})`,
             booking_date
           );
         }
@@ -726,12 +748,17 @@ app.get('/api/bookings/pet-owner/:id', async (req, res) => {
         pet_owner_id: booking.userId,
         service_id: booking.serviceId,
         pet_id: booking.petId,
+        pet_ids: booking.petIds || [booking.petId], // Multi-pet support
+        pet_names: booking.petNames || [pet?.name || 'Unknown'], // Multi-pet names
         booking_date: booking.bookingDate || booking.scheduledDate,
         status: booking.status,
         payment_status: booking.paymentStatus,
         stripe_session_id: booking.stripeSessionId,
         service_name: service?.name || null,
         price: service?.price || null,
+        total_price: booking.totalPrice || service?.price || null, // Total price for multi-pet
+        base_price: booking.basePrice || service?.price || null, // Base price per pet
+        number_of_pets: booking.numberOfPets || 1, // Number of pets in booking
         provider_id: service?.providerId || null,
         service_description: service?.description || null,
         pet_name: pet?.name || null,
@@ -787,12 +814,17 @@ app.get('/api/bookings/provider/:id', async (req, res) => {
           pet_owner_id: booking.userId,
           service_id: booking.serviceId,
           pet_id: booking.petId,
+          pet_ids: booking.petIds || [booking.petId], // Multi-pet support
+          pet_names: booking.petNames || [pet?.name || 'Unknown'], // Multi-pet names
           booking_date: booking.bookingDate || booking.scheduledDate,
           status: booking.status,
           payment_status: booking.paymentStatus,
           stripe_session_id: booking.stripeSessionId,
           service_name: service?.name || null,
           price: service?.price || null,
+          total_price: booking.totalPrice || service?.price || null, // Total price for multi-pet
+          base_price: booking.basePrice || service?.price || null, // Base price per pet
+          number_of_pets: booking.numberOfPets || 1, // Number of pets in booking
           provider_id: service?.providerId || providerId,
           pet_name: pet?.name || null,
           pet_type: pet?.species || null,

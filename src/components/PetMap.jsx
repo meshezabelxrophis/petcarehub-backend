@@ -1,23 +1,24 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { GoogleMap, OverlayView, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { IoMdPaw } from 'react-icons/io';
-import { renderToStaticMarkup } from 'react-dom/server';
-import L from 'leaflet';
 import io from 'socket.io-client';
 import { loadLottie } from '../utils/animationLoader';
 import { SOCKET_URL, SOCKET_CONFIG } from '../config/backend';
+import { 
+  GOOGLE_MAPS_API_KEY, 
+  DEFAULT_CENTER, 
+  DEFAULT_ZOOM, 
+  DEFAULT_MAP_OPTIONS,
+  GOOGLE_MAPS_LIBRARIES 
+} from '../config/googleMaps';
 
 // Lazy load Lottie for radar animation
 const Lottie = lazy(() => import('lottie-react'));
 
 const PetMap = () => {
-  // Default location: Islamabad, Pakistan
-  const defaultPosition = [33.6844, 73.0479];
-  const defaultZoom = 13;
-
   // Enhanced state for animations
-  const [position, setPosition] = useState(defaultPosition);
+  const [position, setPosition] = useState(DEFAULT_CENTER);
   const [timestamp, setTimestamp] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
@@ -25,52 +26,18 @@ const PetMap = () => {
   const [markerBounce, setMarkerBounce] = useState(false);
   const [radarAnimation, setRadarAnimation] = useState(null);
   const [showRadar, setShowRadar] = useState(false);
-  const [markerKey, setMarkerKey] = useState(0); // Force marker re-render
+  const [showInfoWindow, setShowInfoWindow] = useState(false);
 
   // Refs for smooth animations
   const mapRef = useRef();
-  const markerRef = useRef();
   const socketRef = useRef();
   const locationTimeoutRef = useRef();
 
-  // Create animated paw marker with proper Leaflet integration
-  const createAnimatedPawIcon = () => {
-    // Create the paw icon with CSS animations
-    const pawIconMarkup = renderToStaticMarkup(
-      <div 
-        className="paw-marker-content"
-        style={{
-          width: '32px',
-          height: '32px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'white',
-          borderRadius: '50%',
-          border: '3px solid #0f766e',
-          boxShadow: '0 4px 12px rgba(15, 118, 110, 0.3)',
-          position: 'relative',
-          animation: 'gentle-paw-pulse 2s ease-in-out infinite'
-        }}
-      >
-        <IoMdPaw 
-          size={20} 
-          color="#0f766e"
-          style={{
-            filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))'
-          }}
-        />
-      </div>
-    );
-    
-    return L.divIcon({
-      html: pawIconMarkup,
-      iconSize: [40, 40],
-      iconAnchor: [20, 20],
-      popupAnchor: [0, -20],
-      className: `animated-paw-marker ${markerBounce ? 'marker-bounce' : ''}`
-    });
-  };
+  // Load Google Maps
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
+  });
 
   // Load animations on component mount
   useEffect(() => {
@@ -85,7 +52,7 @@ const PetMap = () => {
     const handleSimulateGPS = (event) => {
       console.log('🧪 Debug GPS simulation triggered:', event.detail);
       const { lat, lng, timestamp: debugTimestamp } = event.detail;
-      updatePetLocation([lat, lng], debugTimestamp || Date.now());
+      updatePetLocation({ lat, lng }, debugTimestamp || Date.now());
     };
 
     window.addEventListener('simulateGPSUpdate', handleSimulateGPS);
@@ -103,21 +70,11 @@ const PetMap = () => {
     
     // Trigger marker bounce animation
     setMarkerBounce(true);
-    setMarkerKey(prev => prev + 1); // Force marker re-render
     setTimeout(() => setMarkerBounce(false), 600);
     
     // Smooth map movement
     if (mapRef.current) {
-      mapRef.current.panTo(newPosition, { 
-        animate: true, 
-        duration: 1.0,
-        easeLinearity: 0.2
-      });
-    }
-    
-    // Smooth marker movement (if marker exists)
-    if (markerRef.current) {
-      markerRef.current.setLatLng(newPosition);
+      mapRef.current.panTo(newPosition);
     }
 
     // Hide radar after animation
@@ -151,7 +108,7 @@ const PetMap = () => {
     // Listen for pet location updates with enhanced animations
     socketRef.current.on('petLocationUpdate', (data) => {
       console.log('📍 Received pet location update:', data);
-      const newPosition = [data.latitude, data.longitude];
+      const newPosition = { lat: data.latitude, lng: data.longitude };
       updatePetLocation(newPosition, data.timestamp);
       
       // Clear any existing timeout
@@ -204,58 +161,70 @@ const PetMap = () => {
     return { text: '🟢 Live tracking', color: 'green' };
   };
 
+  if (loadError) {
+    return <div className="text-red-500">Error loading Google Maps</div>;
+  }
+
+  if (!isLoaded) {
+    return <div className="flex items-center justify-center" style={{ height: '400px' }}>
+      <div className="text-center">
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-teal-500 border-t-transparent"></div>
+        <p className="mt-2 text-gray-600">Loading map...</p>
+      </div>
+    </div>;
+  }
+
   return (
     <div style={{ position: 'relative' }}>
       <style>
         {`
           /* Enhanced marker animations */
           .animated-paw-marker {
-            background: transparent !important;
-            border: none !important;
-            transition: all 0.3s ease !important;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border-radius: 50%;
+            border: 3px solid #0f766e;
+            box-shadow: 0 4px 12px rgba(15, 118, 110, 0.3);
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
           }
           
-          .animated-paw-marker.marker-bounce {
-            animation: paw-marker-bounce 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) !important;
+          .animated-paw-marker.active {
+            animation: gentle-paw-pulse 2s ease-in-out infinite;
           }
           
-          /* Apply gentle pulse to both direct content and child divs */
-          .paw-marker-content,
-          .animated-paw-marker .paw-marker-content,
-          .animated-paw-marker > div {  
-            animation: gentle-paw-pulse 2.5s ease-in-out infinite !important;
-          }
-          
-          /* Enhanced bounce animation overrides pulse temporarily */
-          .animated-paw-marker.marker-bounce .paw-marker-content,
-          .animated-paw-marker.marker-bounce > div {
-            animation: paw-marker-bounce 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55), 
-                       gentle-paw-pulse 2.5s ease-in-out infinite !important;
+          .animated-paw-marker.bounce {
+            animation: paw-marker-bounce 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
           }
           
           @keyframes paw-marker-bounce {
             0% { 
-              transform: scale(1) translateY(0) rotate(0deg); 
+              transform: translate(-50%, -50%) scale(1) translateY(0) rotate(0deg); 
             }
             30% { 
-              transform: scale(1.2) translateY(-10px) rotate(-8deg); 
+              transform: translate(-50%, -50%) scale(1.2) translateY(-10px) rotate(-8deg); 
             }
             60% { 
-              transform: scale(1.08) translateY(-3px) rotate(3deg); 
+              transform: translate(-50%, -50%) scale(1.08) translateY(-3px) rotate(3deg); 
             }
             100% { 
-              transform: scale(1) translateY(0) rotate(0deg); 
+              transform: translate(-50%, -50%) scale(1) translateY(0) rotate(0deg); 
             }
           }
           
           @keyframes gentle-paw-pulse {
             0%, 100% { 
-              transform: scale(1) rotate(0deg); 
+              transform: translate(-50%, -50%) scale(1) rotate(0deg); 
               box-shadow: 0 4px 12px rgba(15, 118, 110, 0.3);
               border-color: #0f766e;
             }
             50% { 
-              transform: scale(1.08) rotate(2deg); 
+              transform: translate(-50%, -50%) scale(1.08) rotate(2deg); 
               box-shadow: 0 8px 20px rgba(15, 118, 110, 0.5);
               border-color: #059669;
             }
@@ -280,10 +249,8 @@ const PetMap = () => {
           
           @media (prefers-reduced-motion: reduce) {
             .animated-paw-marker,
-            .paw-marker-content,
-            .animated-paw-marker > div,
-            .animated-paw-marker.marker-bounce,
-            .animated-paw-marker.marker-bounce > div {
+            .animated-paw-marker.active,
+            .animated-paw-marker.bounce {
               animation: none !important;
               transition: none !important;
             }
@@ -331,31 +298,48 @@ const PetMap = () => {
         )}
       </AnimatePresence>
 
-      <MapContainer 
-        center={position} 
-        zoom={defaultZoom} 
-        style={{ width: '100%', height: '400px' }}
-        ref={mapRef}
+      <GoogleMap
+        mapContainerStyle={{ width: '100%', height: '400px' }}
+        center={position}
+        zoom={DEFAULT_ZOOM}
+        options={DEFAULT_MAP_OPTIONS}
+        onLoad={(map) => { mapRef.current = map; }}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        
-        <Marker 
-          key={`marker-${markerKey}`}
-          position={position} 
-          icon={createAnimatedPawIcon()}
-          ref={markerRef}
+        {/* Custom Paw Marker using OverlayView */}
+        <OverlayView
+          position={position}
+          mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
         >
-          <Popup>
+          <div
+            className={`animated-paw-marker ${isLocationActive ? 'active' : ''} ${markerBounce ? 'bounce' : ''}`}
+            onClick={() => setShowInfoWindow(true)}
+            style={{
+              transform: 'translate(-50%, -50%)',
+            }}
+          >
+            <IoMdPaw 
+              size={24} 
+              color="#0f766e"
+              style={{
+                filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))'
+              }}
+            />
+          </div>
+        </OverlayView>
+
+        {/* Info Window */}
+        {showInfoWindow && (
+          <InfoWindow 
+            position={position}
+            onCloseClick={() => setShowInfoWindow(false)}
+          >
             <div>
               <strong>🐾 Pet Location</strong><br/>
               {isLoading ? (
                 'Connecting...'
               ) : (
                 <>
-                  Lat: {position[0].toFixed(4)}, Lng: {position[1].toFixed(4)}<br/>
+                  Lat: {position.lat.toFixed(4)}, Lng: {position.lng.toFixed(4)}<br/>
                   <small>Updated: {formatTimestamp(timestamp)}</small><br/>
                   <small style={{ color: getConnectionStatus().color }}>
                     {getConnectionStatus().text}
@@ -363,9 +347,9 @@ const PetMap = () => {
                 </>
               )}
             </div>
-          </Popup>
-        </Marker>
-      </MapContainer>
+          </InfoWindow>
+        )}
+      </GoogleMap>
       
       {/* Debug Info */}
       {process.env.NODE_ENV === 'development' && (

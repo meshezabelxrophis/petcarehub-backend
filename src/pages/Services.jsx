@@ -1,20 +1,24 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search } from "lucide-react";
+import { Search, MapPin } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
+import useUserLocation from "../hooks/useUserLocation";
+import { API_ENDPOINTS } from "../config/backend";
 import CheckoutButton from "../components/CheckoutButton";
 import { getAllServices, getUserProfile } from "../services/firestoreService";
 
 function Services() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const { latitude, longitude } = useUserLocation();
   const [services, setServices] = useState([]);
   const [providers, setProviders] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredServices, setFilteredServices] = useState([]);
+  const [maxRadius, setMaxRadius] = useState(10); // Default 10km radius
 
   // Animation variants for service cards (same as pet cards)
   const containerVariants = {
@@ -61,25 +65,87 @@ function Services() {
         // Fetch all services directly from Firestore
         const allServices = await getAllServices();
         
-        // Fetch provider details for each service
+        // Fetch provider details from both Firestore and backend API
         const providerMap = {};
         const uniqueProviderIds = [...new Set(allServices.map(service => service.providerId))];
+        
+        // Fetch provider location data from backend API
+        let backendProviders = [];
+        try {
+          const providersRes = await fetch(API_ENDPOINTS.PROVIDERS);
+          if (providersRes.ok) {
+            backendProviders = await providersRes.json();
+          }
+        } catch (err) {
+          console.warn('Could not fetch provider locations from backend:', err);
+        }
         
         for (const providerId of uniqueProviderIds) {
           try {
             const providerData = await getUserProfile(providerId);
             // Only add if it's a service provider
             if (providerData && providerData.accountType === 'serviceProvider') {
-              providerMap[providerId] = providerData;
+              // Find matching provider from backend to get location data
+              const backendProvider = backendProviders.find(p => p.id === providerId);
+              providerMap[providerId] = {
+                ...providerData,
+                latitude: backendProvider?.latitude || providerData.latitude,
+                longitude: backendProvider?.longitude || providerData.longitude,
+              };
             }
           } catch (err) {
             console.error(`Error fetching provider ${providerId}:`, err);
           }
         }
         
-        setServices(allServices);
+        // Calculate distances if user location is available
+        const servicesWithDistance = allServices.map(service => {
+          const provider = providerMap[service.providerId];
+          let distance = null;
+          
+          if (provider && provider.latitude && provider.longitude && latitude && longitude) {
+            const providerLat = parseFloat(provider.latitude);
+            const providerLon = parseFloat(provider.longitude);
+            const userLat = parseFloat(latitude);
+            const userLon = parseFloat(longitude);
+            
+            if (!isNaN(providerLat) && !isNaN(providerLon) && !isNaN(userLat) && !isNaN(userLon)) {
+              // Haversine formula
+              const R = 6371; // Earth's radius in km
+              const dLat = (providerLat - userLat) * (Math.PI / 180);
+              const dLon = (providerLon - userLon) * (Math.PI / 180);
+              const a = 
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(userLat * (Math.PI / 180)) * Math.cos(providerLat * (Math.PI / 180)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+              const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+              distance = R * c;
+            }
+          }
+          
+          return {
+            ...service,
+            distance
+          };
+        });
+        
+        // Filter services within radius (only if user has location)
+        const nearbyServices = latitude && longitude
+          ? servicesWithDistance.filter(service => 
+              service.distance !== null && service.distance <= maxRadius
+            )
+          : servicesWithDistance; // Show all if no location
+        
+        // Sort by distance (closest first)
+        const sortedServices = nearbyServices.sort((a, b) => {
+          if (a.distance === null) return 1;
+          if (b.distance === null) return -1;
+          return a.distance - b.distance;
+        });
+        
+        setServices(sortedServices);
         setProviders(providerMap);
-        setFilteredServices(allServices);
+        setFilteredServices(sortedServices);
       } catch (err) {
         console.error('Error fetching services:', err);
         setError('Failed to load services. Please try again later.');
@@ -89,7 +155,7 @@ function Services() {
     };
     
     fetchServices();
-  }, []);
+  }, [latitude, longitude, maxRadius]);
   
   useEffect(() => {
     if (searchTerm.trim() === '') {
@@ -124,16 +190,41 @@ function Services() {
             Find the perfect service for your pet from our network of verified professionals
           </p>
           
-          {/* Search bar */}
-          <div className="max-w-xl mx-auto relative">
-            <input
-              type="text"
-              placeholder="Search for services..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-3 pl-12 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900"
-            />
-            <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+          {/* Search bar and Radius filter */}
+          <div className="max-w-xl mx-auto space-y-4">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search for services..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-4 py-3 pl-12 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900"
+              />
+              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+            </div>
+            
+            {/* Radius Filter */}
+            {latitude && longitude && (
+              <div className="bg-white bg-opacity-10 backdrop-blur-sm rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium">Search Radius</label>
+                  <span className="text-lg font-bold">{maxRadius}km</span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="50"
+                  step="1"
+                  value={maxRadius}
+                  onChange={(e) => setMaxRadius(parseInt(e.target.value))}
+                  className="w-full h-2 bg-white bg-opacity-30 rounded-lg appearance-none cursor-pointer"
+                />
+                <div className="flex justify-between text-xs mt-1 opacity-75">
+                  <span>1km</span>
+                  <span>50km</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -141,7 +232,14 @@ function Services() {
       {/* Available Services section */}
       <div className="py-16 bg-white">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold mb-12 text-center text-gray-800">Available Services</h2>
+          <div className="flex justify-between items-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-800">Available Services</h2>
+            {latitude && longitude && filteredServices.length > 0 && (
+              <p className="text-gray-600">
+                Showing <span className="font-bold text-teal-600">{filteredServices.length}</span> services within {maxRadius}km
+              </p>
+            )}
+          </div>
           
           {error && (
             <div className="mb-8 p-4 bg-red-100 text-red-700 rounded-md text-center">
@@ -160,13 +258,37 @@ function Services() {
             </div>
           ) : filteredServices.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-600">No services found matching your search.</p>
-              <button
-                onClick={() => setSearchTerm("")}
-                className="mt-4 px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 transition-colors"
-              >
-                View All Services
-              </button>
+              <MapPin className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+              <p className="text-gray-600 mb-2">
+                {searchTerm 
+                  ? "No services found matching your search." 
+                  : latitude && longitude
+                    ? `No services found within ${maxRadius}km of your location.`
+                    : "No services available at the moment."}
+              </p>
+              {latitude && longitude && !searchTerm && (
+                <p className="text-sm text-gray-500 mb-4">
+                  Try increasing the search radius to see more services
+                </p>
+              )}
+              <div className="flex gap-3 justify-center">
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm("")}
+                    className="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 transition-colors"
+                  >
+                    Clear Search
+                  </button>
+                )}
+                {latitude && longitude && maxRadius < 50 && (
+                  <button
+                    onClick={() => setMaxRadius(50)}
+                    className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+                  >
+                    Expand to 50km
+                  </button>
+                )}
+              </div>
             </div>
           ) : (
             <motion.div 
@@ -191,9 +313,20 @@ function Services() {
                       <p className="text-gray-600 mb-4">{service.description || "No description available."}</p>
                       
                       {providers[service.providerId] && (
-                        <p className="text-sm text-gray-500 mb-4">
+                        <p className="text-sm text-gray-500 mb-2">
                           Provided by <span className="font-medium">{providers[service.providerId].name}</span>
                         </p>
+                      )}
+                      
+                      {service.distance !== null && (
+                        <div className="flex items-center text-teal-600 mb-4">
+                          <MapPin className="w-4 h-4 mr-1" />
+                          <span className="text-sm font-semibold">
+                            {service.distance < 1 
+                              ? `${(service.distance * 1000).toFixed(0)}m away` 
+                              : `${service.distance.toFixed(1)}km away`}
+                          </span>
+                        </div>
                       )}
                       
                       <div className="flex justify-between items-center">

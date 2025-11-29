@@ -6,7 +6,7 @@
  */
 
 // Your Vercel deployment URL
-const BASE_URL = 'https://petcarehub-external-d4p96vidh-meshezabel95-gmailcoms-projects.vercel.app';
+const BASE_URL = 'https://petcarehub-external-api.vercel.app';
 
 // ANSI colors
 const colors = {

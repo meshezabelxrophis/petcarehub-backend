@@ -5,7 +5,7 @@
  */
 
 // Updated Vercel deployment URL
-const BASE_URL = 'https://petcarehub-external-extxd2xj8-meshezabel95-gmailcoms-projects.vercel.app';
+const BASE_URL = 'https://petcarehub-external-api.vercel.app';
 
 const colors = {
   reset: '\x1b[0m',

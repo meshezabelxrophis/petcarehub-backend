@@ -1,36 +1,49 @@
-import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import React, { useState, useEffect, useRef } from 'react';
+import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
 import { MapPin, Phone, Loader2, AlertCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import useUserLocation from '../hooks/useUserLocation';
-import L from 'leaflet';
 import { API_ENDPOINTS } from '../config/backend';
-
-// Fix for default markers in react-leaflet
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png'
-});
+import { 
+  GOOGLE_MAPS_API_KEY, 
+  DEFAULT_MAP_OPTIONS,
+  GOOGLE_MAPS_LIBRARIES 
+} from '../config/googleMaps';
 
 function Clinics() {
   const { latitude, longitude, loading: locationLoading, error: locationError, isUsingFallback, getCurrentLocation } = useUserLocation();
   const [clinics, setClinics] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [selectedClinic, setSelectedClinic] = useState(null);
+  const mapRef = useRef();
 
-  // Reverse geocoding function
+  // Load Google Maps
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
+  });
+
+  // Reverse geocoding function using Google Maps Geocoding API
   const getLocationName = async (lat, lon) => {
     try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=16`);
-      const data = await response.json();
+      if (!window.google || !window.google.maps) return null;
       
-      if (data && data.display_name) {
-        // Extract relevant parts of the address
-        const parts = data.display_name.split(',').slice(0, 3); // Take first 3 parts
-        return parts.join(', ').trim();
-      }
-      return null;
+      const geocoder = new window.google.maps.Geocoder();
+      const latlng = { lat: parseFloat(lat), lng: parseFloat(lon) };
+      
+      return new Promise((resolve) => {
+        geocoder.geocode({ location: latlng }, (results, status) => {
+          if (status === 'OK' && results[0]) {
+            // Get a formatted address
+            const addressComponents = results[0].formatted_address.split(',');
+            const shortAddress = addressComponents.slice(0, 3).join(', ');
+            resolve(shortAddress);
+          } else {
+            resolve(null);
+          }
+        });
+      });
     } catch (error) {
       console.error('Reverse geocoding failed:', error);
       return null;
@@ -92,6 +105,20 @@ function Clinics() {
               }
             }
             
+            // Calculate distance using Haversine formula
+            let distance = null;
+            if (!isNaN(providerLat) && !isNaN(providerLon) && !isNaN(parsedLat) && !isNaN(parsedLon)) {
+              const R = 6371; // Radius of Earth in kilometers
+              const dLat = (providerLat - parsedLat) * (Math.PI / 180);
+              const dLon = (providerLon - parsedLon) * (Math.PI / 180);
+              const a = 
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(parsedLat * (Math.PI / 180)) * Math.cos(providerLat * (Math.PI / 180)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+              const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+              distance = R * c; // Distance in km
+            }
+            
             return {
               clinic_id: provider.id,
               name: provider.name,
@@ -100,12 +127,20 @@ function Clinics() {
               latitude: providerLat,
               longitude: providerLon,
               bio: provider.bio,
+              distance: distance,
               services: [] // Would need separate API call to get provider services if needed
             };
           })
       );
       
-      setClinics(clinicsWithLocations);
+      // Sort by distance (closest first)
+      const sortedClinics = clinicsWithLocations.sort((a, b) => {
+        if (a.distance === null) return 1;
+        if (b.distance === null) return -1;
+        return a.distance - b.distance;
+      });
+      
+      setClinics(sortedClinics);
     } catch (err) {
       console.error('❌ Error fetching providers:', err);
       setError('Failed to load nearby providers. Please try again later.');
@@ -249,6 +284,19 @@ function Clinics() {
                     <span className="text-sm">{clinic.address || 'Address not provided'}</span>
                   </div>
                   
+                  {clinic.distance !== null && (
+                    <div className="flex items-center text-teal-600 mb-2">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                      </svg>
+                      <span className="text-sm font-semibold">
+                        {clinic.distance < 1 
+                          ? `${(clinic.distance * 1000).toFixed(0)}m away` 
+                          : `${clinic.distance.toFixed(1)}km away`}
+                      </span>
+                    </div>
+                  )}
+                  
                   <div className="flex items-center text-gray-600 mb-4">
                     <Phone className="w-4 h-4 mr-2 text-teal-600" />
                     <span className="text-sm">{clinic.contact_number || clinic.phone || 'Phone not provided'}</span>
@@ -259,18 +307,18 @@ function Clinics() {
                   )}
                   
                   <div className="flex gap-2">
-                    <a
-                      href={`/providers/${clinic.clinic_id}`}
+                    <Link
+                      to={`/providers/${clinic.clinic_id}`}
                       className="inline-block bg-gray-100 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-200 transition"
                     >
                       View Details
-                    </a>
-                    <a
-                      href={`/providers/${clinic.clinic_id}`}
+                    </Link>
+                    <Link
+                      to={`/providers/${clinic.clinic_id}`}
                       className="inline-block bg-teal-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-teal-700 transition"
                     >
                       View Services
-                    </a>
+                    </Link>
                   </div>
                 </div>
               ))}
@@ -282,36 +330,37 @@ function Clinics() {
         <div>
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Map View</h2>
           <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-            {latitude !== null && longitude !== null && !isNaN(latitude) && !isNaN(longitude) ? (
-              <MapContainer
-                key={`${latitude}-${longitude}`} // Force re-render when location changes
-                center={[latitude, longitude]}
+            {loadError ? (
+              <div className="h-96 flex items-center justify-center bg-red-50">
+                <p className="text-red-600">Error loading map</p>
+              </div>
+            ) : !isLoaded ? (
+              <div className="h-96 flex items-center justify-center bg-gray-50">
+                <div className="text-center">
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-teal-600" />
+                  <p className="text-gray-600">Loading map...</p>
+                </div>
+              </div>
+            ) : latitude !== null && longitude !== null && !isNaN(latitude) && !isNaN(longitude) ? (
+              <GoogleMap
+                mapContainerStyle={{ height: '500px', width: '100%' }}
+                center={{ lat: latitude, lng: longitude }}
                 zoom={13}
-                style={{ height: '500px', width: '100%' }}
+                options={DEFAULT_MAP_OPTIONS}
+                onLoad={(map) => { mapRef.current = map; }}
               >
-                <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                />
-                
                 {/* User location marker */}
-                <Marker position={[latitude, longitude]}>
-                  <Popup>
-                    <div className="text-center">
-                      <strong>Your Location</strong>
-                      <br />
-                      <span className="text-xs text-gray-600">
-                        {latitude.toFixed(6)}°, {longitude.toFixed(6)}°
-                      </span>
-                      {isUsingFallback && (
-                        <>
-                          <br />
-                          <span className="text-xs text-yellow-600">(Default location)</span>
-                        </>
-                      )}
-                    </div>
-                  </Popup>
-                </Marker>
+                <Marker 
+                  position={{ lat: latitude, lng: longitude }}
+                  icon={{
+                    path: window.google?.maps?.SymbolPath?.CIRCLE,
+                    fillColor: '#3b82f6',
+                    fillOpacity: 1,
+                    strokeWeight: 3,
+                    strokeColor: '#ffffff',
+                    scale: 8,
+                  }}
+                />
                 
                 {/* Provider markers */}
                 {clinics
@@ -329,36 +378,54 @@ function Clinics() {
                     const lon = parseFloat(clinic.longitude);
                     console.log('📍 Rendering marker for:', clinic.name, 'at', { lat, lon });
                     return (
-                    <Marker
-                      key={clinic.clinic_id}
-                      position={[lat, lon]}
-                    >
-                    <Popup>
-                      <div className="text-center p-2">
-                        <h3 className="font-semibold text-gray-900 mb-2">
-                          {clinic.name}
-                        </h3>
-                        <p className="text-xs text-gray-600 mb-2">{clinic.address}</p>
-                        <div className="flex gap-2">
-                          <a
-                            href={`/providers/${clinic.clinic_id}`}
-                            className="inline-block bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs font-medium hover:bg-gray-200 transition"
-                          >
-                            Details
-                          </a>
-                          <a
-                            href={`/providers/${clinic.clinic_id}`}
-                            className="inline-block bg-teal-600 text-white px-2 py-1 rounded text-xs font-medium hover:bg-teal-700 transition"
-                          >
-                            Services
-                          </a>
-                        </div>
-                      </div>
-                    </Popup>
-                    </Marker>
+                      <Marker
+                        key={clinic.clinic_id}
+                        position={{ lat, lng: lon }}
+                        onClick={() => setSelectedClinic(clinic)}
+                        icon={{
+                          path: window.google?.maps?.SymbolPath?.CIRCLE,
+                          fillColor: '#dc2626',
+                          fillOpacity: 1,
+                          strokeWeight: 3,
+                          strokeColor: '#ffffff',
+                          scale: 10,
+                        }}
+                      >
+                        {selectedClinic?.clinic_id === clinic.clinic_id && (
+                          <InfoWindow onCloseClick={() => setSelectedClinic(null)}>
+                            <div className="text-center p-2">
+                              <h3 className="font-semibold text-gray-900 mb-2">
+                                {clinic.name}
+                              </h3>
+                              <p className="text-xs text-gray-600 mb-2">{clinic.address}</p>
+                              {clinic.distance !== null && (
+                                <p className="text-xs text-teal-600 font-semibold mb-2">
+                                  📍 {clinic.distance < 1 
+                                    ? `${(clinic.distance * 1000).toFixed(0)}m away` 
+                                    : `${clinic.distance.toFixed(1)}km away`}
+                                </p>
+                              )}
+                              <div className="flex gap-2">
+                                <Link
+                                  to={`/providers/${clinic.clinic_id}`}
+                                  className="inline-block bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs font-medium hover:bg-gray-200 transition"
+                                >
+                                  Details
+                                </Link>
+                                <Link
+                                  to={`/providers/${clinic.clinic_id}`}
+                                  className="inline-block bg-teal-600 text-white px-2 py-1 rounded text-xs font-medium hover:bg-teal-700 transition"
+                                >
+                                  Services
+                                </Link>
+                              </div>
+                            </div>
+                          </InfoWindow>
+                        )}
+                      </Marker>
                     );
                   })}
-              </MapContainer>
+              </GoogleMap>
             ) : (
               <div className="h-96 flex items-center justify-center bg-gray-50">
                 <div className="text-center">

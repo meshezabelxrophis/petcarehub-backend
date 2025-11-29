@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { GoogleMap, OverlayView, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { IoMdPaw } from 'react-icons/io';
-import { renderToStaticMarkup } from 'react-dom/server';
 import { AlertTriangle, CheckCircle, Shield, Edit3 } from 'lucide-react';
-import L from 'leaflet';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
@@ -12,20 +10,29 @@ import SafeZoneCircle from './SafeZoneCircle';
 import SafeZoneEditor from './SafeZoneEditor';
 import RadiusSlider from './RadiusSlider';
 import useSafeZoneMonitoring from '../hooks/useSafeZoneMonitoring';
+import { 
+  GOOGLE_MAPS_API_KEY, 
+  DEFAULT_CENTER, 
+  DEFAULT_MAP_OPTIONS,
+  GOOGLE_MAPS_LIBRARIES 
+} from '../config/googleMaps';
 
 const PetMapWithGeofence = ({ petId, petName }) => {
-  // Default location: Islamabad, Pakistan
-  const defaultPosition = [33.6844, 73.0479];
   const defaultZoom = 15;
 
   const { userId } = useAuth();
-  const [position, setPosition] = useState(defaultPosition);
-  const [markerKey, setMarkerKey] = useState(0);
+  const [position, setPosition] = useState(DEFAULT_CENTER);
   const [isEditMode, setIsEditMode] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [liveRadius, setLiveRadius] = useState(null);
+  const [showInfoWindow, setShowInfoWindow] = useState(false);
   const mapRef = useRef();
-  const markerRef = useRef();
+
+  // Load Google Maps
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
+  });
 
   // Real-time geofencing monitoring
   const {
@@ -41,17 +48,12 @@ const PetMapWithGeofence = ({ petId, petName }) => {
   // Update map position when pet location changes
   useEffect(() => {
     if (petLocation?.lat && petLocation?.lng) {
-      const newPosition = [petLocation.lat, petLocation.lng];
+      const newPosition = { lat: petLocation.lat, lng: petLocation.lng };
       setPosition(newPosition);
-      setMarkerKey((prev) => prev + 1);
 
       // Smooth pan to new location (only if not in edit mode)
       if (mapRef.current && !isEditMode) {
-        mapRef.current.panTo(newPosition, {
-          animate: true,
-          duration: 1.0,
-          easeLinearity: 0.2,
-        });
+        mapRef.current.panTo(newPosition);
       }
     }
   }, [petLocation, isEditMode]);
@@ -98,108 +100,71 @@ const PetMapWithGeofence = ({ petId, petName }) => {
     console.log(`📏 Radius changed to: ${newRadius}m`);
   };
 
-  // Create animated paw marker
-  const createAnimatedPawIcon = (isOutsideZone) => {
-    const color = isOutsideZone ? '#ef4444' : '#0f766e'; // Red if outside, teal if inside
-    const borderColor = isOutsideZone ? '#dc2626' : '#0f766e';
+  if (loadError) {
+    return <div className="text-red-500">Error loading Google Maps</div>;
+  }
 
-    const pawIconMarkup = renderToStaticMarkup(
-      <div
-        className="paw-marker-content"
-        style={{
-          width: '36px',
-          height: '36px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'white',
-          borderRadius: '50%',
-          border: `3px solid ${borderColor}`,
-          boxShadow: isOutsideZone
-            ? '0 4px 16px rgba(239, 68, 68, 0.4)'
-            : '0 4px 12px rgba(15, 118, 110, 0.3)',
-          position: 'relative',
-          animation: isOutsideZone
-            ? 'danger-pulse 1s ease-in-out infinite'
-            : 'gentle-paw-pulse 2s ease-in-out infinite',
-        }}
-      >
-        <IoMdPaw size={22} color={color} />
+  if (!isLoaded) {
+    return <div className="flex items-center justify-center" style={{ height: '500px' }}>
+      <div className="text-center">
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-teal-500 border-t-transparent"></div>
+        <p className="mt-2 text-gray-600">Loading map...</p>
       </div>
-    );
-
-    return L.divIcon({
-      html: pawIconMarkup,
-      iconSize: [40, 40],
-      iconAnchor: [20, 20],
-      popupAnchor: [0, -20],
-      className: `animated-paw-marker ${isOutsideZone ? 'danger' : ''}`,
-    });
-  };
+    </div>;
+  }
 
   return (
     <div style={{ position: 'relative' }}>
       <style>
         {`
+          /* Custom Paw Marker Styles */
           .animated-paw-marker {
-            background: transparent !important;
-            border: none !important;
-            transition: all 0.3s ease !important;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+          }
+          
+          .animated-paw-marker.safe {
+            border: 3px solid #10b981;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+            animation: gentle-paw-pulse 2s ease-in-out infinite;
+          }
+          
+          .animated-paw-marker.danger {
+            border: 3px solid #ef4444;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+            animation: danger-pulse 1.5s ease-in-out infinite;
           }
 
           /* Gentle pulse for normal state */
           @keyframes gentle-paw-pulse {
             0%, 100% { 
-              transform: scale(1); 
-              opacity: 1;
+              transform: translate(-50%, -50%) scale(1) rotate(0deg); 
+              box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
             }
             50% { 
-              transform: scale(1.08); 
-              opacity: 0.9;
+              transform: translate(-50%, -50%) scale(1.08) rotate(2deg); 
+              box-shadow: 0 8px 20px rgba(16, 185, 129, 0.6);
             }
           }
 
           /* Danger pulse for pet marker when outside */
           @keyframes danger-pulse {
             0%, 100% { 
-              transform: scale(1); 
-              box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+              transform: translate(-50%, -50%) scale(1); 
+              box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
             }
             50% { 
-              transform: scale(1.2); 
-              box-shadow: 0 0 0 15px rgba(239, 68, 68, 0);
+              transform: translate(-50%, -50%) scale(1.2); 
+              box-shadow: 0 8px 24px rgba(239, 68, 68, 0.8);
             }
-          }
-
-          /* Glowing pulse for safe zone circle when breached */
-          @keyframes glow-pulse {
-            0%, 100% {
-              filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.5));
-              opacity: 1;
-            }
-            50% {
-              filter: drop-shadow(0 0 20px rgba(239, 68, 68, 0.8));
-              opacity: 0.8;
-            }
-          }
-
-          /* Ripple effect for safe zone breach */
-          @keyframes ripple {
-            0% {
-              transform: scale(0.8);
-              opacity: 1;
-            }
-            100% {
-              transform: scale(1.5);
-              opacity: 0;
-            }
-          }
-
-          /* Shake animation for alert banner */
-          @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
-            20%, 40%, 60%, 80% { transform: translateX(5px); }
           }
 
           /* Breathing glow for danger state */
@@ -216,13 +181,11 @@ const PetMapWithGeofence = ({ petId, petName }) => {
             }
           }
 
-          /* Leaflet circle animations */
-          .leaflet-interactive.danger-zone {
-            animation: glow-pulse 2s ease-in-out infinite;
-          }
-
-          .leaflet-interactive.safe-zone {
-            transition: all 0.5s ease;
+          /* Shake animation for alert banner */
+          @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
           }
         `}
       </style>
@@ -367,34 +330,50 @@ const PetMapWithGeofence = ({ petId, petName }) => {
       )}
 
       {/* Map Container */}
-      <MapContainer
+      <GoogleMap
+        mapContainerStyle={{ width: '100%', height: '500px' }}
         center={position}
         zoom={defaultZoom}
-        style={{ width: '100%', height: '500px' }}
-        ref={mapRef}
+        options={DEFAULT_MAP_OPTIONS}
+        onLoad={(map) => { mapRef.current = map; }}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-
-        {/* Pet Location Marker */}
-        <Marker
-          key={`marker-${markerKey}`}
+        {/* Pet Location Marker - Custom Paw Icon */}
+        <OverlayView
           position={position}
-          icon={createAnimatedPawIcon(isOutside)}
-          ref={markerRef}
+          mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
         >
-          <Popup>
+          <div
+            className={`animated-paw-marker ${isOutside ? 'danger' : 'safe'}`}
+            onClick={() => setShowInfoWindow(true)}
+            style={{
+              transform: 'translate(-50%, -50%)',
+            }}
+          >
+            <IoMdPaw 
+              size={28} 
+              color={isOutside ? '#ef4444' : '#10b981'}
+              style={{
+                filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))'
+              }}
+            />
+          </div>
+        </OverlayView>
+
+        {/* Info Window */}
+        {showInfoWindow && (
+          <InfoWindow 
+            position={position}
+            onCloseClick={() => setShowInfoWindow(false)}
+          >
             <div className="text-sm">
               <strong className="flex items-center">
                 <IoMdPaw className="mr-1" />
                 {petName}'s Location
               </strong>
               <br />
-              <small>Lat: {position[0].toFixed(4)}</small>
+              <small>Lat: {position.lat.toFixed(4)}</small>
               <br />
-              <small>Lng: {position[1].toFixed(4)}</small>
+              <small>Lng: {position.lng.toFixed(4)}</small>
               {isMonitoring && (
                 <>
                   <br />
@@ -413,8 +392,8 @@ const PetMapWithGeofence = ({ petId, petName }) => {
                 </>
               )}
             </div>
-          </Popup>
-        </Marker>
+          </InfoWindow>
+        )}
 
         {/* Safe Zone Circle with Glowing Effect (hide in edit mode) */}
         {safeZone && !isEditMode && (
@@ -434,8 +413,9 @@ const PetMapWithGeofence = ({ petId, petName }) => {
           onCancel={handleCancelEdit}
           initialZone={safeZone}
           currentPetLocation={petLocation}
+          map={mapRef.current}
         />
-      </MapContainer>
+      </GoogleMap>
 
       {/* Radius Slider (persistent control at bottom) */}
       {safeZone && !isEditMode && !loading && (
@@ -524,4 +504,3 @@ const PetMapWithGeofence = ({ petId, petName }) => {
 };
 
 export default PetMapWithGeofence;
-

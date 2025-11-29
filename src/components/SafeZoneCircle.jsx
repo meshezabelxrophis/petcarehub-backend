@@ -1,8 +1,8 @@
-import React, { useEffect, useRef } from 'react';
-import { Circle, Popup } from 'react-leaflet';
+import React from 'react';
+import { Circle, InfoWindow } from '@react-google-maps/api';
 
 /**
- * SafeZoneCircle - Displays a safe zone boundary on Leaflet map with animations
+ * SafeZoneCircle - Displays a safe zone boundary on Google Maps with animations
  * 
  * Usage:
  * <SafeZoneCircle 
@@ -14,54 +14,43 @@ const SafeZoneCircle = ({
   safeZone, 
   isBreached = false 
 }) => {
-  const circleRef = useRef();
+  const [showInfo, setShowInfo] = React.useState(false);
 
   if (!safeZone || !safeZone.lat || !safeZone.lng || !safeZone.radius) {
     return null;
   }
 
-  // Apply CSS class based on breach state
-  useEffect(() => {
-    if (circleRef.current) {
-      const circleElement = circleRef.current._path;
-      if (circleElement) {
-        if (isBreached) {
-          circleElement.classList.add('danger-zone');
-          circleElement.classList.remove('safe-zone');
-        } else {
-          circleElement.classList.add('safe-zone');
-          circleElement.classList.remove('danger-zone');
-        }
-      }
-    }
-  }, [isBreached]);
-
-  const pathOptions = isBreached ? {
-    color: '#ef4444',
+  const circleOptions = isBreached ? {
+    strokeColor: '#ef4444',
+    strokeOpacity: 0.8,
+    strokeWeight: 3,
     fillColor: '#ef4444',
     fillOpacity: 0.2,
-    weight: 3,
-    dashArray: '10, 5',
-    className: 'danger-zone',
+    clickable: true,
   } : {
-    color: '#10b981',
+    strokeColor: '#10b981',
+    strokeOpacity: 0.8,
+    strokeWeight: 2,
     fillColor: '#10b981',
     fillOpacity: 0.1,
-    weight: 2,
-    dashArray: '10, 5',
-    className: 'safe-zone',
+    clickable: true,
   };
 
   return (
     <>
       {/* Main Safe Zone Circle */}
       <Circle
-        ref={circleRef}
-        center={[safeZone.lat, safeZone.lng]}
+        center={{ lat: safeZone.lat, lng: safeZone.lng }}
         radius={safeZone.radius}
-        pathOptions={pathOptions}
-      >
-        <Popup>
+        options={circleOptions}
+        onClick={() => setShowInfo(true)}
+      />
+      
+      {showInfo && (
+        <InfoWindow
+          position={{ lat: safeZone.lat, lng: safeZone.lng }}
+          onCloseClick={() => setShowInfo(false)}
+        >
           <div className="text-sm">
             <strong className="flex items-center">
               {isBreached ? '🚨' : '🛡️'} Safe Zone {isBreached && '(BREACHED)'}
@@ -87,35 +76,35 @@ const SafeZoneCircle = ({
               </>
             )}
           </div>
-        </Popup>
-      </Circle>
+        </InfoWindow>
+      )}
 
-      {/* Ripple Effect Circle (only when breached) */}
+      {/* Ripple Effect Circles (only when breached) */}
       {isBreached && (
         <>
           <Circle
-            center={[safeZone.lat, safeZone.lng]}
+            center={{ lat: safeZone.lat, lng: safeZone.lng }}
             radius={safeZone.radius * 1.1}
-            pathOptions={{
-              color: '#ef4444',
+            options={{
+              strokeColor: '#ef4444',
+              strokeOpacity: 0.5,
+              strokeWeight: 1,
               fillColor: '#ef4444',
               fillOpacity: 0.1,
-              weight: 1,
-              dashArray: '5, 10',
+              clickable: false,
             }}
-            className="ripple-circle"
           />
           <Circle
-            center={[safeZone.lat, safeZone.lng]}
+            center={{ lat: safeZone.lat, lng: safeZone.lng }}
             radius={safeZone.radius * 1.2}
-            pathOptions={{
-              color: '#ef4444',
+            options={{
+              strokeColor: '#ef4444',
+              strokeOpacity: 0.3,
+              strokeWeight: 1,
               fillColor: '#ef4444',
               fillOpacity: 0.05,
-              weight: 1,
-              dashArray: '3, 15',
+              clickable: false,
             }}
-            className="ripple-circle"
           />
         </>
       )}
@@ -124,4 +113,3 @@ const SafeZoneCircle = ({
 };
 
 export default SafeZoneCircle;
-

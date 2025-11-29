@@ -44,7 +44,6 @@ function Navbar() {
           <nav className="hidden lg:flex items-center space-x-6">
             <Link to="/services" className="font-medium text-gray-700 hover:text-teal-600 transition-colors">Services</Link>
             <Link to="/providers" className="font-medium text-gray-700 hover:text-teal-600 transition-colors">Providers</Link>
-            <Link to="/smart-collars" className="font-medium text-gray-700 hover:text-teal-600 transition-colors">Smart Collars</Link>
             
             {isPetOwner && (
               <>
@@ -213,13 +212,6 @@ function Navbar() {
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Providers
-              </Link>
-              <Link 
-                to="/smart-collars" 
-                className="font-medium text-gray-700 hover:text-teal-600 hover:bg-teal-50 px-3 py-2 rounded-md transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Smart Collars
               </Link>
               
               {isPetOwner && (

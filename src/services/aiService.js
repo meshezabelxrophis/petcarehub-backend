@@ -20,19 +20,25 @@ export const chatWithAI = async (message, sessionId, context = {}) => {
     // Generate AI response via Vercel backend
     const response = await generateAIResponse(message, sessionId, context);
     
-    // Store conversation via backend (saves to Firestore)
-    await storeToFirestore('ai_conversations', {
-      sessionId,
-      question: message,
-      answer: response.reply,
-      context,
-      timestamp: new Date().toISOString()
-    }, {
-      sessionId,
-      type: 'chat_conversation'
-    });
+    // Store conversation via backend (saves to Firestore) - don't fail if this fails
+    try {
+      await storeToFirestore('ai_conversations', {
+        sessionId,
+        question: message,
+        answer: response.reply,
+        context,
+        timestamp: new Date().toISOString()
+      }, {
+        sessionId,
+        type: 'chat_conversation'
+      });
+      console.log('✅ AI conversation stored');
+    } catch (storeError) {
+      console.warn('⚠️ Failed to store conversation (non-critical):', storeError);
+      // Continue even if storage fails
+    }
     
-    console.log('✅ AI response received and stored');
+    console.log('✅ AI response received');
     
     return {
       success: true,
@@ -41,9 +47,21 @@ export const chatWithAI = async (message, sessionId, context = {}) => {
     };
   } catch (error) {
     console.error('❌ AI chat failed:', error);
+    
+    // Provide more helpful error messages
+    let errorMessage = 'Sorry, I encountered an error. Please try again.';
+    
+    if (error.message?.includes('endpoint not found') || error.message?.includes('not be deployed')) {
+      errorMessage = 'The AI service is currently unavailable. Please try again later.';
+    } else if (error.message?.includes('Unable to reach') || error.message?.includes('fetch')) {
+      errorMessage = 'Unable to connect to the AI service. Please check your connection.';
+    } else if (error.message) {
+      errorMessage = `Error: ${error.message}`;
+    }
+    
     return {
       success: false,
-      reply: 'Sorry, I encountered an error. Please try again.',
+      reply: errorMessage,
       error: error.message
     };
   }

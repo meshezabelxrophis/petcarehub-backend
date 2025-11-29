@@ -243,8 +243,19 @@ function MyBookings() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{booking.provider_name}</div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{booking.pet_name}</div>
+                  <td className="px-6 py-4">
+                    <div className="text-sm text-gray-900">
+                      {booking.pet_names && Array.isArray(booking.pet_names) && booking.pet_names.length > 1 ? (
+                        <div>
+                          <span className="font-semibold">{booking.pet_names.length} pets:</span>
+                          <div className="text-xs text-gray-600 mt-1">
+                            {booking.pet_names.join(', ')}
+                          </div>
+                        </div>
+                      ) : (
+                        booking.pet_name || (booking.pet_names && booking.pet_names[0]) || 'Unknown'
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{booking.booking_date && new Date(booking.booking_date).toLocaleDateString()}</div>
@@ -255,7 +266,20 @@ function MyBookings() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">${booking.price || "0.00"}</div>
+                    <div className="text-sm text-gray-900">
+                      {booking.total_price ? (
+                        <div>
+                          <div className="font-semibold">${booking.total_price.toFixed(2)}</div>
+                          {booking.number_of_pets > 1 && (
+                            <div className="text-xs text-gray-600">
+                              ${booking.base_price} × {booking.number_of_pets}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        `$${booking.price || "0.00"}`
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {booking.payment_status === 'paid' ? (

@@ -1,34 +1,14 @@
-import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import React, { useEffect, useState, useRef } from 'react';
+import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
 import { useGPSTracking } from '../hooks/useGPSTracking';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
-
-// Fix default marker icon issue with webpack
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: require('leaflet/dist/images/marker-icon-2x.png'),
-  iconUrl: require('leaflet/dist/images/marker-icon.png'),
-  shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
-});
-
-// Component to auto-center map on location
-const MapController = ({ location }) => {
-  const map = useMap();
-
-  useEffect(() => {
-    if (location && location.lat && location.lng) {
-      map.flyTo([location.lat, location.lng], 15, {
-        duration: 1
-      });
-    }
-  }, [location, map]);
-
-  return null;
-};
+import { 
+  GOOGLE_MAPS_API_KEY, 
+  DEFAULT_MAP_OPTIONS,
+  GOOGLE_MAPS_LIBRARIES 
+} from '../config/googleMaps';
 
 /**
- * Live GPS tracking map component
+ * Live GPS tracking map component with Google Maps
  * @param {string} petId - Pet ID to track
  * @param {string} petName - Pet name (optional)
  * @param {number} height - Map height in pixels (default: 400)
@@ -36,6 +16,14 @@ const MapController = ({ location }) => {
 const LiveGPSMap = ({ petId, petName = 'Pet', height = 400 }) => {
   const { location, isLoading, error } = useGPSTracking(petId);
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [showInfo, setShowInfo] = useState(false);
+  const mapRef = useRef();
+
+  // Load Google Maps
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
+  });
 
   useEffect(() => {
     if (location && location.lastUpdated) {
@@ -43,7 +31,18 @@ const LiveGPSMap = ({ petId, petName = 'Pet', height = 400 }) => {
     }
   }, [location]);
 
-  if (isLoading) {
+  // Auto-center map on location changes
+  useEffect(() => {
+    if (mapRef.current && location && location.lat && location.lng) {
+      mapRef.current.panTo({ lat: location.lat, lng: location.lng });
+    }
+  }, [location]);
+
+  if (loadError) {
+    return <div className="text-red-500">Error loading Google Maps</div>;
+  }
+
+  if (isLoading || !isLoaded) {
     return (
       <div className="flex items-center justify-center" style={{ height }}>
         <div className="text-center">
@@ -100,50 +99,42 @@ const LiveGPSMap = ({ petId, petName = 'Pet', height = 400 }) => {
         )}
       </div>
 
-      {/* Map */}
-      <MapContainer
-        center={[location.lat, location.lng]}
+      {/* Google Map */}
+      <GoogleMap
+        mapContainerStyle={{ height: '100%', width: '100%', borderRadius: '0.5rem' }}
+        center={{ lat: location.lat, lng: location.lng }}
         zoom={15}
-        style={{ height: '100%', width: '100%' }}
-        className="rounded-lg"
+        options={DEFAULT_MAP_OPTIONS}
+        onLoad={(map) => { mapRef.current = map; }}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        
-        <Marker position={[location.lat, location.lng]}>
-          <Popup>
-            <div className="p-2">
-              <h3 className="font-bold text-lg">{petName}</h3>
-              <p className="text-sm text-gray-600">
-                📍 {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
-              </p>
-              {location.accuracy && (
-                <p className="text-xs text-gray-500">
-                  Accuracy: ±{Math.round(location.accuracy)}m
+        <Marker 
+          position={{ lat: location.lat, lng: location.lng }}
+          onClick={() => setShowInfo(true)}
+        >
+          {showInfo && (
+            <InfoWindow onCloseClick={() => setShowInfo(false)}>
+              <div className="p-2">
+                <h3 className="font-bold text-lg">{petName}</h3>
+                <p className="text-sm text-gray-600">
+                  📍 {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
                 </p>
-              )}
-              {lastUpdate && (
-                <p className="text-xs text-gray-500 mt-1">
-                  {lastUpdate.toLocaleString()}
-                </p>
-              )}
-            </div>
-          </Popup>
+                {location.accuracy && (
+                  <p className="text-xs text-gray-500">
+                    Accuracy: ±{Math.round(location.accuracy)}m
+                  </p>
+                )}
+                {lastUpdate && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {lastUpdate.toLocaleString()}
+                  </p>
+                )}
+              </div>
+            </InfoWindow>
+          )}
         </Marker>
-
-        <MapController location={location} />
-      </MapContainer>
+      </GoogleMap>
     </div>
   );
 };
 
 export default LiveGPSMap;
-
-
-
-
-
-
-

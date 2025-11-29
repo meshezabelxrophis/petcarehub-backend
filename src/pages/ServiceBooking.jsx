@@ -16,7 +16,7 @@ function ServiceBooking() {
   const [success, setSuccess] = useState(false);
   
   // Form state
-  const [selectedPet, setSelectedPet] = useState(null); // Changed from "" to null for better type checking
+  const [selectedPets, setSelectedPets] = useState([]); // Array for multiple pet selection
   const [bookingDate, setBookingDate] = useState("");
   const [validationErrors, setValidationErrors] = useState({});
   
@@ -84,8 +84,8 @@ function ServiceBooking() {
   const validateForm = () => {
     const errors = {};
     
-    if (!selectedPet) {
-      errors.pet = "Please select a pet for this booking";
+    if (selectedPets.length === 0) {
+      errors.pet = "Please select at least one pet for this booking";
     }
     
     if (!bookingDate) {
@@ -114,16 +114,31 @@ function ServiceBooking() {
     }
     
     try {
-      // Create booking data with all necessary information
+      // Calculate total price (base price × number of pets)
+      const basePrice = parseFloat(service.price) || 0;
+      const totalPrice = basePrice * selectedPets.length;
+      
+      // Get pet names for the booking
+      const selectedPetNames = selectedPets.map(petId => {
+        const pet = pets.find(p => p.id === petId);
+        return pet ? pet.name : 'Unknown';
+      });
+      
+      // Create one booking with multiple pets
       const bookingData = {
         pet_owner_id: currentUser?.uid || currentUser?.id, // Use Firebase Auth UID
         service_id: service.id,
-        pet_id: selectedPet, // This is now a number
+        pet_id: selectedPets[0], // Primary pet (for backward compatibility)
+        pet_ids: selectedPets, // Array of all selected pets
+        pet_names: selectedPetNames, // Names of all pets
         booking_date: bookingDate,
-        provider_id: service.provider_id // Include the provider ID from the service
+        provider_id: service.provider_id,
+        total_price: totalPrice, // Calculated total price
+        base_price: basePrice, // Original service price
+        number_of_pets: selectedPets.length // Count of pets
       };
       
-      console.log("Creating new booking with data:", bookingData);
+      console.log("Creating multi-pet booking:", bookingData);
       
       const res = await fetch(API_ENDPOINTS.BOOKINGS, {
         method: "POST",
@@ -139,13 +154,13 @@ function ServiceBooking() {
       }
       
       const data = await res.json();
-      console.log("New booking created:", data);
+      console.log("Multi-pet booking created:", data);
       
       // Show success message
       setSuccess(true);
       
       // Reset form
-      setSelectedPet(null);
+      setSelectedPets([]);
       setBookingDate("");
       
       // Redirect to bookings page after a delay
@@ -158,15 +173,20 @@ function ServiceBooking() {
     }
   };
 
-  // Handle pet selection
+  // Handle pet selection (toggle)
   const handlePetSelection = (petId) => {
-    console.log("Selected pet ID:", petId, "Type:", typeof petId);
+    console.log("Toggling pet ID:", petId, "Type:", typeof petId);
     
-    // Find the pet in our list to confirm it exists
-    const selectedPetObj = pets.find(p => p.id === petId);
-    console.log("Found pet:", selectedPetObj);
+    setSelectedPets(prevSelected => {
+      if (prevSelected.includes(petId)) {
+        // Remove pet if already selected
+        return prevSelected.filter(id => id !== petId);
+      } else {
+        // Add pet if not selected
+        return [...prevSelected, petId];
+      }
+    });
     
-    setSelectedPet(petId);
     // Clear any validation errors for pet selection
     setValidationErrors({...validationErrors, pet: undefined});
   };
@@ -232,8 +252,14 @@ function ServiceBooking() {
           <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-green-500 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
-          <h2 className="text-2xl font-bold text-green-800 mb-2">Booking Successful!</h2>
-          <p className="text-green-700 mb-4">Your booking has been confirmed. You'll be redirected to your bookings page shortly.</p>
+          <h2 className="text-2xl font-bold text-green-800 mb-2">
+            {selectedPets.length > 1 ? 'Bookings' : 'Booking'} Successful!
+          </h2>
+          <p className="text-green-700 mb-4">
+            {selectedPets.length > 1 
+              ? `${selectedPets.length} bookings have been confirmed. You'll be redirected to your bookings page shortly.`
+              : 'Your booking has been confirmed. You\'ll be redirected to your bookings page shortly.'}
+          </p>
           <button
             onClick={() => navigate("/my-bookings")}
             className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
@@ -263,21 +289,27 @@ function ServiceBooking() {
             <div className="mb-6 p-4 bg-gray-50 rounded-md">
               <h2 className="text-xl font-semibold text-gray-800">{service.name}</h2>
               <p className="text-gray-600 mt-1">{service.description}</p>
-              <div className="mt-4 flex justify-between items-center">
-                <div>
+              <div className="mt-4 space-y-2">
+                <div className="flex justify-between items-center">
                   <span className="text-gray-600">Provider:</span>
-                  <span className="ml-2 font-medium">{provider?.name || "Unknown Provider"}</span>
+                  <span className="font-medium">{provider?.name || "Unknown Provider"}</span>
                 </div>
-                <div>
-                  <span className="text-gray-600">Price:</span>
-                  <span className="ml-2 font-medium">${service.price}</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Price per pet:</span>
+                  <span className="font-medium">${service.price}</span>
                 </div>
+                {selectedPets.length > 0 && (
+                  <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                    <span className="text-gray-800 font-semibold">Total ({selectedPets.length} pet{selectedPets.length > 1 ? 's' : ''}):</span>
+                    <span className="text-2xl font-bold text-teal-600">${(parseFloat(service.price) * selectedPets.length).toFixed(2)}</span>
+                  </div>
+                )}
               </div>
             </div>
             
             <form onSubmit={handleSubmit}>
               <div className="mb-6">
-                <label className="block text-gray-700 font-medium mb-2">Select Pet</label>
+                <label className="block text-gray-700 font-medium mb-2">Select Pet(s)</label>
                 {pets.length === 0 ? (
                   <div className="text-center p-6 bg-gray-50 rounded-md">
                     <p className="text-gray-600 mb-4">You don't have any pets added yet.</p>
@@ -296,7 +328,7 @@ function ServiceBooking() {
                         <div 
                           key={pet.id}
                           className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-                            selectedPet === pet.id 
+                            selectedPets.includes(pet.id)
                               ? "border-teal-500 bg-teal-50 ring-2 ring-teal-500" 
                               : "border-gray-200 hover:border-teal-300"
                           }`}
@@ -328,16 +360,14 @@ function ServiceBooking() {
                             </div>
                             <div className="ml-2">
                               <input
-                                type="radio"
-                                name="selectedPet"
-                                value={pet.id}
-                                checked={selectedPet === pet.id}
+                                type="checkbox"
+                                checked={selectedPets.includes(pet.id)}
                                 onChange={() => handlePetSelection(pet.id)}
-                                className="h-5 w-5 text-teal-600 border-gray-300 focus:ring-teal-500"
+                                className="h-5 w-5 text-teal-600 border-gray-300 rounded focus:ring-teal-500"
                               />
                             </div>
                           </div>
-                          {selectedPet === pet.id && (
+                          {selectedPets.includes(pet.id) && (
                             <div className="mt-3 text-sm text-gray-600 grid grid-cols-2 gap-2">
                               {pet.age && <div><span className="font-medium">Age:</span> {pet.age} years</div>}
                               {pet.gender && <div><span className="font-medium">Gender:</span> {pet.gender}</div>}
@@ -351,15 +381,25 @@ function ServiceBooking() {
                     {validationErrors.pet && (
                       <p className="mt-1 text-sm text-red-600">{validationErrors.pet}</p>
                     )}
-                    {pets.length > 0 && selectedPet && (
-                      <div className="mt-2 p-2 bg-teal-50 border border-teal-200 rounded-md text-teal-700 text-sm">
-                        <div className="flex items-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    {pets.length > 0 && selectedPets.length > 0 && (
+                      <div className="mt-2 p-3 bg-teal-50 border border-teal-200 rounded-md text-teal-700 text-sm">
+                        <div className="flex items-start">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                           </svg>
-                          <span>
-                            You've selected {pets.find(p => p.id === selectedPet)?.name} for this booking
-                          </span>
+                          <div>
+                            <div className="font-medium mb-1">
+                              {selectedPets.length === 1 
+                                ? "You've selected 1 pet for this booking:" 
+                                : `You've selected ${selectedPets.length} pets for this booking:`}
+                            </div>
+                            <ul className="list-disc list-inside">
+                              {selectedPets.map(petId => {
+                                const pet = pets.find(p => p.id === petId);
+                                return pet ? <li key={petId}>{pet.name}</li> : null;
+                              })}
+                            </ul>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -407,10 +447,10 @@ function ServiceBooking() {
                 </button>
                 <button
                   type="submit"
-                  className={`px-6 py-2 ${!selectedPet || !bookingDate ? 'bg-gray-400 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700'} text-white rounded-md transition-colors`}
-                  disabled={!selectedPet || !bookingDate || pets.length === 0}
+                  className={`px-6 py-2 ${selectedPets.length === 0 || !bookingDate ? 'bg-gray-400 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700'} text-white rounded-md transition-colors`}
+                  disabled={selectedPets.length === 0 || !bookingDate || pets.length === 0}
                 >
-                  Book Now
+                  Book Now {selectedPets.length > 1 ? `(${selectedPets.length} pets)` : ''}
                 </button>
               </div>
             </form>

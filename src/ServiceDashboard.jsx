@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
+import { API_ENDPOINTS } from './config/backend';
 
 const ServiceDashboard = () => {
   const { currentUser } = useAuth();
@@ -12,8 +13,12 @@ const ServiceDashboard = () => {
       try {
         setLoading(true);
         const token = localStorage.getItem("token");
-        const res = await fetch(`/api/bookings/provider/${currentUser.id}`, {
+        const bookingsUrl = API_ENDPOINTS.PROVIDER_BOOKINGS(currentUser.id);
+        console.log('🌐 Fetching bookings from:', bookingsUrl);
+        
+        const res = await fetch(bookingsUrl, {
           headers: {
+            'Origin': window.location.origin,
             Authorization: `Bearer ${token}`
           }
         });
@@ -69,10 +74,15 @@ const ServiceDashboard = () => {
   const simulatePayment = async (bookingId) => {
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("/api/payments", {
+      // Use backend URL for payments endpoint
+      const paymentsUrl = `${API_ENDPOINTS.BASE}/api/payments`;
+      console.log('🌐 Processing payment at:', paymentsUrl);
+      
+      const res = await fetch(paymentsUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Origin": window.location.origin,
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({

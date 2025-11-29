@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { prefersReducedMotion } from "../animations/animationConfig";
 import { chatWithAI } from "../services/aiService";
 import { useAuth } from "../context/AuthContext";
+import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { db } from '../config/firebase';
 
 function Chatbot() {
   const { currentUser } = useAuth();
@@ -26,14 +28,15 @@ function Chatbot() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [shouldReduceMotion, setShouldReduceMotion] = useState(false);
+  const [firestoreData, setFirestoreData] = useState({ services: [], providers: [] });
   const [messages, setMessages] = useState(() => {
     try {
       const saved = localStorage.getItem(getUserStorageKey("messages"));
       return saved
         ? JSON.parse(saved)
-        : [{ role: "assistant", content: "Hi! Ask me anything about your pet care needs. I'm powered by Gemini AI!" }];
+        : [{ role: "assistant", content: "Hi! Ask me anything about your pet care needs." }];
     } catch {
-      return [{ role: "assistant", content: "Hi! Ask me anything about your pet care needs. I'm powered by Gemini AI!" }];
+      return [{ role: "assistant", content: "Hi! Ask me anything about your pet care needs." }];
     }
   });
   const scrollRef = useRef(null);
@@ -43,12 +46,62 @@ function Chatbot() {
     setShouldReduceMotion(prefersReducedMotion());
   }, []);
 
+  // Fetch Firestore data for chatbot context
+  useEffect(() => {
+    const fetchFirestoreData = async () => {
+      try {
+        console.log('📊 Fetching Firestore data for chatbot context...');
+        
+        // Fetch services (with isActive=true filter, limit 50)
+        const servicesQuery = query(
+          collection(db, 'services'),
+          where('isActive', '==', true),
+          limit(50)
+        );
+        const servicesSnapshot = await getDocs(servicesQuery);
+        const services = servicesSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        // Fetch providers/users (limit 20)
+        const usersQuery = query(collection(db, 'users'), limit(20));
+        const usersSnapshot = await getDocs(usersQuery);
+        const providers = usersSnapshot.docs
+          .filter(doc => doc.data().role === 'provider')
+          .map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              name: data.name,
+              email: data.email,
+              phone: data.phone,
+              address: data.address,
+              bio: data.bio,
+              businessHours: data.businessHours || {}, // Include business hours
+              location: data.location
+            };
+          });
+        
+        console.log(`✅ Fetched ${services.length} services and ${providers.length} providers (with timings)`);
+        
+        setFirestoreData({ services, providers });
+      } catch (error) {
+        console.error('❌ Error fetching Firestore data:', error);
+        // Continue with empty data if fetch fails
+        setFirestoreData({ services: [], providers: [] });
+      }
+    };
+    
+    fetchFirestoreData();
+  }, []);
+
   // Watch for user changes and reset chat
   useEffect(() => {
     const newUserId = currentUser?.uid;
     
     // Reset messages for new user
-    const newMessages = [{ role: "assistant", content: "Hi! Ask me anything about your pet care needs. I'm powered by Gemini AI!" }];
+    const newMessages = [{ role: "assistant", content: "Hi! Ask me anything about your pet care needs." }];
     setMessages(newMessages);
     
     // Load user-specific settings
@@ -98,7 +151,8 @@ function Chatbot() {
       const response = await chatWithAI(text, sessionId, {
         userId: currentUser?.uid,
         userEmail: currentUser?.email,
-        type: 'pet_care_chat'
+        type: 'pet_care_chat',
+        firestoreData // Pass real Firestore data to backend
       });
       
       if (response.success) {
@@ -203,7 +257,7 @@ function Chatbot() {
                 transition={{ delay: 0.2 }}
               >
                 <span className="text-lg">🤖</span>
-                PetCare AI (Gemini)
+                PetCare Assistant
               </motion.div>
               <motion.button 
                 onClick={() => setIsOpen(false)} 

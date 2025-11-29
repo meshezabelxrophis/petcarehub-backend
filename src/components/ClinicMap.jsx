@@ -1,63 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
 import { FaHospital } from 'react-icons/fa';
-import { renderToStaticMarkup } from 'react-dom/server';
-import L from 'leaflet';
+import { 
+  GOOGLE_MAPS_API_KEY, 
+  DEFAULT_MAP_OPTIONS,
+  GOOGLE_MAPS_LIBRARIES 
+} from '../config/googleMaps';
 
 const ClinicMap = ({ clinics, userLocation, onClinicSelect }) => {
   // Default location: Islamabad, Pakistan (matches useUserLocation fallback)
-  const defaultPosition = [33.6844, 73.0479];
+  const defaultPosition = { lat: 33.6844, lng: 73.0479 };
   const defaultZoom = 12;
   
   const mapRef = useRef();
-  const [mapCenter, setMapCenter] = useState(userLocation || defaultPosition);
-  const [mapKey, setMapKey] = useState(0);
+  const [mapCenter, setMapCenter] = useState(defaultPosition);
+  const [selectedClinic, setSelectedClinic] = useState(null);
 
-  // Create custom clinic marker icon
-  const createClinicIcon = () => {
-    const clinicIconMarkup = renderToStaticMarkup(
-      <FaHospital 
-        size={28} 
-        color="#dc2626" 
-        style={{ 
-          filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))',
-          backgroundColor: 'white',
-          borderRadius: '50%',
-          padding: '6px'
-        }} 
-      />
-    );
-    
-    return L.divIcon({
-      html: clinicIconMarkup,
-      iconSize: [40, 40],
-      iconAnchor: [20, 20],
-      popupAnchor: [0, -20],
-      className: 'custom-clinic-marker'
-    });
-  };
-
-  // Create user location marker icon
-  const createUserIcon = () => {
-    const userIconMarkup = renderToStaticMarkup(
-      <div style={{
-        width: '16px',
-        height: '16px',
-        backgroundColor: '#3b82f6',
-        borderRadius: '50%',
-        border: '3px solid white',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
-      }} />
-    );
-    
-    return L.divIcon({
-      html: userIconMarkup,
-      iconSize: [22, 22],
-      iconAnchor: [11, 11],
-      popupAnchor: [0, -11],
-      className: 'custom-user-marker'
-    });
-  };
+  // Load Google Maps
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
+  });
 
   // Update map center when user location changes
   useEffect(() => {
@@ -71,14 +34,11 @@ const ClinicMap = ({ clinics, userLocation, onClinicSelect }) => {
           parsedLat >= -90 && parsedLat <= 90 && 
           parsedLon >= -180 && parsedLon <= 180) {
         console.log('🗺️ Updating map center to:', { lat: parsedLat, lon: parsedLon });
-        const newCenter = [parsedLat, parsedLon];
+        const newCenter = { lat: parsedLat, lng: parsedLon };
         setMapCenter(newCenter);
         
-        // Force map re-render and re-center
-        setMapKey(prev => prev + 1);
-        
         if (mapRef.current) {
-          mapRef.current.setView(newCenter, defaultZoom);
+          mapRef.current.panTo(newCenter);
         }
       } else {
         console.warn('⚠️ Invalid user location coordinates:', { lat: parsedLat, lon: parsedLon });
@@ -101,6 +61,7 @@ const ClinicMap = ({ clinics, userLocation, onClinicSelect }) => {
   };
 
   const handleClinicClick = (clinic) => {
+    setSelectedClinic(clinic);
     if (onClinicSelect) {
       onClinicSelect(clinic);
     }
@@ -108,28 +69,48 @@ const ClinicMap = ({ clinics, userLocation, onClinicSelect }) => {
     const lat = parseFloat(clinic.latitude);
     const lon = parseFloat(clinic.longitude);
     if (mapRef.current && !isNaN(lat) && !isNaN(lon)) {
-      mapRef.current.setView([lat, lon], 15);
+      mapRef.current.panTo({ lat, lng: lon });
+      mapRef.current.setZoom(15);
     }
   };
+
+  // Create clinic marker icon
+  const createClinicIcon = () => ({
+    path: window.google?.maps?.SymbolPath?.CIRCLE,
+    fillColor: '#dc2626',
+    fillOpacity: 1,
+    strokeWeight: 3,
+    strokeColor: '#ffffff',
+    scale: 12,
+  });
+
+  // Create user location marker icon
+  const createUserIcon = () => ({
+    path: window.google?.maps?.SymbolPath?.CIRCLE,
+    fillColor: '#3b82f6',
+    fillOpacity: 1,
+    strokeWeight: 3,
+    strokeColor: '#ffffff',
+    scale: 8,
+  });
+
+  if (loadError) {
+    return <div className="text-red-500">Error loading Google Maps</div>;
+  }
+
+  if (!isLoaded) {
+    return <div className="flex items-center justify-center" style={{ height: '500px' }}>
+      <div className="text-center">
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-teal-500 border-t-transparent"></div>
+        <p className="mt-2 text-gray-600">Loading map...</p>
+      </div>
+    </div>;
+  }
 
   return (
     <div>
       <style>
         {`
-          .custom-clinic-marker {
-            background: transparent !important;
-            border: none !important;
-          }
-          .custom-clinic-marker svg {
-            background: white;
-            border-radius: 50%;
-            border: 2px solid #dc2626;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-          }
-          .custom-user-marker {
-            background: transparent !important;
-            border: none !important;
-          }
           .clinic-popup {
             min-width: 250px;
           }
@@ -169,28 +150,21 @@ const ClinicMap = ({ clinics, userLocation, onClinicSelect }) => {
           }
         `}
       </style>
-      <MapContainer 
-        key={mapKey} // Force re-render when location changes
-        center={mapCenter} 
-        zoom={defaultZoom} 
-        style={{ width: '100%', height: '500px' }}
-        ref={mapRef}
+      
+      <GoogleMap
+        mapContainerStyle={{ width: '100%', height: '500px' }}
+        center={mapCenter}
+        zoom={defaultZoom}
+        options={DEFAULT_MAP_OPTIONS}
+        onLoad={(map) => { mapRef.current = map; }}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        
         {/* User location marker */}
         {userLocation && Array.isArray(userLocation) && userLocation.length === 2 && (
-          <Marker position={userLocation} icon={createUserIcon()}>
-            <Popup>
-              <div>
-                <strong>Your Location</strong><br/>
-                Lat: {parseFloat(userLocation[0]).toFixed(4)}, Lng: {parseFloat(userLocation[1]).toFixed(4)}
-              </div>
-            </Popup>
-          </Marker>
+          <Marker 
+            position={{ lat: parseFloat(userLocation[0]), lng: parseFloat(userLocation[1]) }}
+            icon={createUserIcon()}
+            title="Your Location"
+          />
         )}
         
         {/* Clinic markers */}
@@ -213,38 +187,42 @@ const ClinicMap = ({ clinics, userLocation, onClinicSelect }) => {
             return (
               <Marker 
                 key={clinic.clinic_id} 
-                position={[lat, lon]} 
+                position={{ lat, lng: lon }}
                 icon={createClinicIcon()}
+                onClick={() => handleClinicClick(clinic)}
+                title={clinic.name}
               >
-                <Popup className="clinic-popup">
-                  <div>
-                    <div className="clinic-name">{clinic.name}</div>
-                    <div className="clinic-address">📍 {clinic.address}</div>
-                    <div className="clinic-contact">📞 {clinic.contact_number}</div>
-                    {userLocation && Array.isArray(userLocation) && userLocation.length === 2 && (
-                      <div className="clinic-distance">
-                        📏 {calculateDistance(
-                          parseFloat(userLocation[0]), 
-                          parseFloat(userLocation[1]), 
-                          lat, 
-                          lon
-                        )} km away
-                      </div>
-                    )}
-                    {clinic.services && clinic.services.length > 0 && (
-                      <div style={{ marginTop: '8px', fontSize: '12px', color: '#6b7280' }}>
-                        Services: {clinic.services.length} available
-                      </div>
-                    )}
-                    <button onClick={() => handleClinicClick(clinic)}>
-                      View Details
-                    </button>
-                  </div>
-                </Popup>
+                {selectedClinic?.clinic_id === clinic.clinic_id && (
+                  <InfoWindow onCloseClick={() => setSelectedClinic(null)}>
+                    <div className="clinic-popup">
+                      <div className="clinic-name">{clinic.name}</div>
+                      <div className="clinic-address">📍 {clinic.address}</div>
+                      <div className="clinic-contact">📞 {clinic.contact_number}</div>
+                      {userLocation && Array.isArray(userLocation) && userLocation.length === 2 && (
+                        <div className="clinic-distance">
+                          📏 {calculateDistance(
+                            parseFloat(userLocation[0]), 
+                            parseFloat(userLocation[1]), 
+                            lat, 
+                            lon
+                          )} km away
+                        </div>
+                      )}
+                      {clinic.services && clinic.services.length > 0 && (
+                        <div style={{ marginTop: '8px', fontSize: '12px', color: '#6b7280' }}>
+                          Services: {clinic.services.length} available
+                        </div>
+                      )}
+                      <button onClick={() => handleClinicClick(clinic)}>
+                        View Details
+                      </button>
+                    </div>
+                  </InfoWindow>
+                )}
               </Marker>
             );
           })}
-      </MapContainer>
+      </GoogleMap>
     </div>
   );
 };

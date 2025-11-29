@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import ProfileCompletionGuard from './ProfileCompletionGuard';
+import { API_ENDPOINTS } from '../config/backend';
 
 const AddServiceForm = ({ onServiceAdded, providerId, onCancel }) => {
   const [formData, setFormData] = useState({
@@ -46,10 +47,14 @@ const AddServiceForm = ({ onServiceAdded, providerId, onCancel }) => {
       });
 
       const token = localStorage.getItem('token');
-      const res = await fetch('/api/services', {
+      const servicesUrl = API_ENDPOINTS.SERVICES;
+      console.log('🌐 Creating service at:', servicesUrl);
+      
+      const res = await fetch(servicesUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Origin': window.location.origin,
           ...(token && { 'Authorization': `Bearer ${token}` }),
         },
         body: JSON.stringify({

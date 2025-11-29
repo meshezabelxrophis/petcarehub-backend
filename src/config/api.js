@@ -12,8 +12,10 @@ import { auth } from './firebase';
 // VERCEL BACKEND API (External APIs)
 // ============================================
 
+// Vercel API Base URL - Production URL (always points to latest deployment)
+// This is the production alias URL that automatically points to the latest successful deployment
 export const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 
-  'https://petcarehub-external-extxd2xj8-meshezabel95-gmailcoms-projects.vercel.app/api';
+  'https://petcarehub-external-api.vercel.app/api';
 
 /**
  * Get Firebase Auth token for authenticated API calls
@@ -22,13 +24,13 @@ const getAuthToken = async () => {
   try {
     const user = auth.currentUser;
     if (!user) {
-      throw new Error('User not authenticated');
+      return null; // Return null instead of throwing - API doesn't require auth
     }
     const token = await user.getIdToken();
     return token;
   } catch (error) {
-    console.error('Error getting auth token:', error);
-    throw error;
+    console.warn('Could not get auth token (continuing without auth):', error);
+    return null; // Return null instead of throwing
   }
 };
 
@@ -37,32 +39,82 @@ const getAuthToken = async () => {
  */
 const authenticatedFetch = async (endpoint, options = {}) => {
   try {
-    // Get Firebase auth token
+    // Get Firebase auth token (optional)
     const token = await getAuthToken();
     
     // Prepare headers
     const headers = {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
       'Origin': window.location.origin,
       ...options.headers
     };
     
+    // Add auth header only if token is available
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
     // Make request
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const fullUrl = `${API_BASE_URL}${endpoint}`;
+    console.log('🌐 Making API request to:', fullUrl);
+    
+    const response = await fetch(fullUrl, {
       ...options,
       headers
     });
     
+    // Check if response is JSON before parsing
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('❌ Non-JSON response received:', text.substring(0, 200));
+      
+      // Check for Vercel authentication protection
+      if (text.includes('Vercel Authentication') || text.includes('Authentication Required')) {
+        throw new Error('Vercel Deployment Protection is enabled. Please disable it in Vercel Dashboard > Settings > Deployment Protection.');
+      }
+      
+      // If it's HTML, likely a 404 or error page
+      if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<!doctype')) {
+        throw new Error(`API endpoint not found (${response.status}). The service may not be deployed.`);
+      }
+      
+      throw new Error(`Server returned ${contentType || 'unknown content type'} instead of JSON. Status: ${response.status}`);
+    }
+    
     // Handle response
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `API request failed: ${response.status}`);
+      const errorMessage = errorData.message || errorData.error || `API request failed: ${response.status}`;
+      console.error('❌ API request failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorMessage,
+        url: fullUrl
+      });
+      throw new Error(errorMessage);
     }
     
-    return response.json();
+    const data = await response.json();
+    console.log('✅ API request successful:', { endpoint, url: fullUrl });
+    return data;
   } catch (error) {
-    console.error('API request error:', error);
+    // Handle network errors
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      console.error('❌ Network error - API may be unreachable:', {
+        endpoint,
+        url: `${API_BASE_URL}${endpoint}`,
+        error: error.message
+      });
+      throw new Error('Unable to reach the API service. Please check your connection or try again later.');
+    }
+    
+    console.error('❌ API request error:', {
+      error: error.message,
+      endpoint,
+      url: `${API_BASE_URL}${endpoint}`,
+      type: error.name
+    });
     throw error;
   }
 };

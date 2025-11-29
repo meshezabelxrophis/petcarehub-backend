@@ -30,6 +30,8 @@ firebase-debug.*.log
 
 # Firebase Service Account (NEVER COMMIT THIS!)
 firebase-service-account.json
+firebase-service-account-*.json
+firebase-service-account-*.txt
 .firebaserc
 
 # Vercel Environment Variables (NEVER COMMIT THIS!)

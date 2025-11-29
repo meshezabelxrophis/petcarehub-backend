@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_ENDPOINTS } from '../config/backend';
 
 const PaymentButton = ({ 
   booking, 
@@ -21,10 +22,14 @@ const PaymentButton = ({
     try {
       console.log('Creating checkout session for booking:', booking);
 
-      const response = await fetch('/api/create-checkout-session', {
+      const checkoutUrl = API_ENDPOINTS.CREATE_CHECKOUT;
+      console.log('🌐 Calling checkout endpoint:', checkoutUrl);
+
+      const response = await fetch(checkoutUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Origin': window.location.origin,
         },
         body: JSON.stringify({
           serviceName: booking.service_name,
@@ -37,6 +42,20 @@ const PaymentButton = ({
       });
 
       console.log('Checkout response status:', response.status);
+
+      // Check if response is JSON before parsing
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('❌ Non-JSON response received:', text.substring(0, 200));
+        
+        // If it's HTML, likely a 404 or error page
+        if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<!doctype')) {
+          throw new Error(`Payment endpoint not found (${response.status}). The backend service may not be running.`);
+        }
+        
+        throw new Error(`Server returned ${contentType || 'unknown content type'} instead of JSON. Status: ${response.status}`);
+      }
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -64,8 +83,25 @@ const PaymentButton = ({
       }
 
     } catch (err) {
-      console.error('Payment error:', err);
-      setError(err.message || 'Failed to create payment session');
+      console.error('❌ Payment error:', err);
+      
+      // Handle network errors
+      let errorMessage = err.message || 'Failed to create payment session';
+      
+      if (err.name === 'TypeError' && err.message.includes('fetch')) {
+        errorMessage = 'Unable to reach the payment service. Please check your connection or try again later.';
+      } else if (err.message?.includes('endpoint not found') || err.message?.includes('HTML')) {
+        errorMessage = 'Payment service is currently unavailable. Please try again later or contact support.';
+      }
+      
+      setError(errorMessage);
+      
+      // Log additional details for debugging
+      if (err.message?.includes('HTML') || err.message?.includes('endpoint not found')) {
+        console.error('💡 Tip: The API endpoint might not exist or the backend service is not running.');
+        console.error('💡 Check that the backend is running and CORS is configured correctly.');
+        console.error('💡 Backend URL:', checkoutUrl);
+      }
     } finally {
       setLoading(false);
     }

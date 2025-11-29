@@ -2,9 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Leaflet CSS */
-@import 'leaflet/dist/leaflet.css';
-
 :root {
   --background: 0 0% 100%;
   --foreground: 240 10% 3.9%;
@@ -128,24 +125,13 @@ img {
   }
 }
 
-/* Leaflet Map Mobile Responsiveness */
-.leaflet-container {
-  height: 400px !important;
-  width: 100% !important;
+/* Google Maps Mobile Responsiveness */
+.gm-style {
   border-radius: 0.5rem;
-  z-index: 1;
 }
 
-@media (min-width: 640px) {
-  .leaflet-container {
-    height: 500px !important;
-  }
-}
-
-@media (min-width: 1024px) {
-  .leaflet-container {
-    height: 600px !important;
-  }
+.gm-style > div:first-child {
+  border-radius: 0.5rem;
 }
 
 /* Mobile Menu Animation */

@@ -22,9 +22,6 @@ export function Navbar() {
           <Link href="/providers" className="text-sm font-medium hover:text-teal-600 transition-colors">
             Providers
           </Link>
-          <Link href="/smart-collars" className="text-sm font-medium hover:text-teal-600 transition-colors">
-            Smart Collars
-          </Link>
           <Link href="/about" className="text-sm font-medium hover:text-teal-600 transition-colors">
             About Us
           </Link>
@@ -54,9 +51,6 @@ export function Navbar() {
             </Link>
             <Link href="/providers" className="text-sm font-medium hover:text-teal-600 transition-colors">
               Providers
-            </Link>
-            <Link href="/smart-collars" className="text-sm font-medium hover:text-teal-600 transition-colors">
-              Smart Collars
             </Link>
             <Link href="/about" className="text-sm font-medium hover:text-teal-600 transition-colors">
               About Us
