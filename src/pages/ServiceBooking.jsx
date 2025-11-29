@@ -19,6 +19,7 @@ function ServiceBooking() {
   const [selectedPets, setSelectedPets] = useState([]); // Array for multiple pet selection
   const [bookingDate, setBookingDate] = useState("");
   const [validationErrors, setValidationErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false); // Prevent double submission
   
   useEffect(() => {
     const fetchData = async () => {
@@ -99,6 +100,12 @@ function ServiceBooking() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Prevent double submission
+    if (isSubmitting) {
+      console.log("Booking submission already in progress, ignoring duplicate submit");
+      return;
+    }
+    
     // Clear previous errors
     setError("");
     
@@ -112,6 +119,8 @@ function ServiceBooking() {
       navigate("/login");
       return;
     }
+    
+    setIsSubmitting(true);
     
     try {
       // Calculate total price (base price × number of pets)
@@ -170,6 +179,7 @@ function ServiceBooking() {
     } catch (err) {
       console.error("Error creating booking:", err);
       setError(err.message || "Failed to create booking. Please try again later.");
+      setIsSubmitting(false); // Re-enable on error
     }
   };
 
@@ -447,10 +457,10 @@ function ServiceBooking() {
                 </button>
                 <button
                   type="submit"
-                  className={`px-6 py-2 ${selectedPets.length === 0 || !bookingDate ? 'bg-gray-400 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700'} text-white rounded-md transition-colors`}
-                  disabled={selectedPets.length === 0 || !bookingDate || pets.length === 0}
+                  className={`px-6 py-2 ${selectedPets.length === 0 || !bookingDate || isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700'} text-white rounded-md transition-colors`}
+                  disabled={selectedPets.length === 0 || !bookingDate || pets.length === 0 || isSubmitting}
                 >
-                  Book Now {selectedPets.length > 1 ? `(${selectedPets.length} pets)` : ''}
+                  {isSubmitting ? 'Creating Booking...' : `Book Now ${selectedPets.length > 1 ? `(${selectedPets.length} pets)` : ''}`}
                 </button>
               </div>
             </form>

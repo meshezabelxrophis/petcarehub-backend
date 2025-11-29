@@ -623,7 +623,20 @@ app.post('/api/bookings', async (req, res) => {
       number_of_pets
     } = req.body;
     
-    console.log('Creating new booking with data:', req.body);
+    console.log('📝 Creating new booking with data:', {
+      pet_owner_id,
+      service_id,
+      pet_id,
+      pet_ids,
+      number_of_pets,
+      booking_date
+    });
+    
+    // IMPORTANT: If pet_ids is provided as an array with multiple pets,
+    // we create ONE booking for ALL pets, NOT individual bookings
+    if (pet_ids && Array.isArray(pet_ids) && pet_ids.length > 1) {
+      console.log(`✅ Multi-pet booking detected: ${pet_ids.length} pets. Creating SINGLE booking.`);
+    }
     
     if (!pet_owner_id || !service_id || !pet_id || !booking_date) {
       return res.status(400).json({ error: 'All booking details are required' });
@@ -638,6 +651,31 @@ app.post('/api/bookings', async (req, res) => {
     
     const finalProviderId = provider_id || service.providerId;
     console.log(`Service ${service_id} is provided by provider ${finalProviderId}`);
+    
+    // Check for duplicate bookings (same user, service, date, and pets) within last 5 seconds
+    // This prevents accidental double-submissions
+    if (pet_ids && Array.isArray(pet_ids) && pet_ids.length > 0) {
+      const recentBookings = await BookingService.getBookingsByUser(pet_owner_id);
+      const fiveSecondsAgo = new Date(Date.now() - 5000);
+      const duplicateCheck = recentBookings.find(b => 
+        b.serviceId === service_id &&
+        b.bookingDate === booking_date &&
+        b.petIds && 
+        Array.isArray(b.petIds) &&
+        b.petIds.length === pet_ids.length &&
+        b.petIds.every(id => pet_ids.includes(id)) &&
+        new Date(b.createdAt?.toDate?.() || b.createdAt) > fiveSecondsAgo
+      );
+      
+      if (duplicateCheck) {
+        console.log(`⚠️  Duplicate booking detected! Returning existing booking ID: ${duplicateCheck.id}`);
+        return res.status(200).json({
+          id: duplicateCheck.id,
+          message: 'Booking already exists (duplicate submission prevented)',
+          ...duplicateCheck
+        });
+      }
+    }
     
     // Create booking in Firestore
     const bookingData = {
@@ -657,8 +695,14 @@ app.post('/api/bookings', async (req, res) => {
       numberOfPets: number_of_pets || 1 // Store number of pets
     };
     
+    // IMPORTANT: Create ONLY ONE booking, even if pet_ids contains multiple pets
     const newBooking = await BookingService.createBooking(bookingData);
-    console.log(`✅ Created booking with ID ${newBooking.id}`);
+    console.log(`✅ Created SINGLE booking with ID ${newBooking.id} for ${number_of_pets || 1} pet(s)`);
+    
+    // Log warning if somehow multiple bookings are being created
+    if (pet_ids && Array.isArray(pet_ids) && pet_ids.length > 1) {
+      console.log(`⚠️  Multi-pet booking created. This should be ONE booking, not ${pet_ids.length} separate bookings.`);
+    }
     
     // Get additional details for response
     const pet = await PetService.getPetById(pet_id);
