@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { API_ENDPOINTS } from "../config/backend";
 
 function Profile() {
   const { currentUser, isServiceProvider } = useAuth();
@@ -44,7 +45,7 @@ function Profile() {
       const fetchProfileData = async () => {
         try {
           const token = localStorage.getItem("token");
-          const res = await fetch(`/api/providers/${currentUser.id}/profile`, {
+          const res = await fetch(API_ENDPOINTS.PROVIDER_PROFILE(currentUser.id), {
             headers: {
               Authorization: `Bearer ${token}`
             }
@@ -92,7 +93,7 @@ function Profile() {
     
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`/api/providers/${currentUser.id}/profile`, {
+      const res = await fetch(API_ENDPOINTS.PROVIDER_PROFILE(currentUser.id), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -112,11 +113,13 @@ function Profile() {
           }, 1000);
         }
       } else {
-        setMessage("Failed to update profile");
+        const errorData = await res.json().catch(() => ({}));
+        console.error("Failed to update profile:", errorData);
+        setMessage(`Failed to update profile: ${errorData.error || res.statusText}`);
       }
     } catch (error) {
       console.error("Error updating profile:", error);
-      setMessage("An error occurred while updating profile");
+      setMessage(`An error occurred while updating profile: ${error.message}`);
     }
   };
   
