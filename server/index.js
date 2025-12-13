@@ -453,6 +453,38 @@ app.get('/api/services', async (req, res) => {
   }
 });
 
+// Utility endpoint to fix existing services (add isActive flag to all services)
+app.post('/api/services/fix-active-flag', async (req, res) => {
+  try {
+    console.log('🔧 Fixing isActive flag for all services...');
+    
+    const allServices = await ServiceOffering.getAllServices();
+    console.log(`  Found ${allServices.length} services`);
+    
+    let updatedCount = 0;
+    for (const service of allServices) {
+      if (service.isActive === undefined) {
+        await ServiceOffering.updateService(service.id, { 
+          isActive: true,
+          createdAt: service.createdAt || new Date()
+        });
+        updatedCount++;
+        console.log(`  ✅ Updated service: ${service.name} (${service.id})`);
+      }
+    }
+    
+    console.log(`✅ Fixed ${updatedCount} services`);
+    res.json({ 
+      message: `Successfully updated ${updatedCount} services with isActive flag`,
+      totalServices: allServices.length,
+      updatedServices: updatedCount
+    });
+  } catch (error) {
+    console.error('❌ Error fixing services:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Delete a service
 app.delete('/api/services/:id', async (req, res) => {
   try {
