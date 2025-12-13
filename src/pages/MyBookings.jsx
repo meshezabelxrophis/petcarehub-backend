@@ -71,7 +71,7 @@ function MyBookings() {
   
   const handleCancelBooking = async (bookingId) => {
     try {
-      const res = await fetch(`/api/bookings/${bookingId}`, {
+      const res = await fetch(API_ENDPOINTS.BOOKING_BY_ID(bookingId), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json"
@@ -102,7 +102,7 @@ function MyBookings() {
     }
     
     try {
-      const res = await fetch(`/api/bookings/${bookingId}`, {
+      const res = await fetch(API_ENDPOINTS.BOOKING_BY_ID(bookingId), {
         method: "DELETE"
       });
       
