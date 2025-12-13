@@ -19,6 +19,7 @@ function Services() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredServices, setFilteredServices] = useState([]);
   const [maxRadius, setMaxRadius] = useState(10); // Default 10km radius
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Animation variants for service cards (same as pet cards)
   const containerVariants = {
@@ -64,6 +65,7 @@ function Services() {
         
         // Fetch all services directly from Firestore
         const allServices = await getAllServices();
+        console.log(`📦 Fetched ${allServices.length} services from Firestore`);
         
         // Fetch provider details from both Firestore and backend API
         const providerMap = {};
@@ -92,9 +94,12 @@ function Services() {
                 latitude: backendProvider?.latitude || providerData.latitude,
                 longitude: backendProvider?.longitude || providerData.longitude,
               };
+              console.log(`✅ Added provider: ${providerData.name} (${providerId})`);
+            } else {
+              console.warn(`⚠️ Provider ${providerId} skipped - not a service provider or data missing`, providerData);
             }
           } catch (err) {
-            console.error(`Error fetching provider ${providerId}:`, err);
+            console.error(`❌ Error fetching provider ${providerId}:`, err);
           }
         }
         
@@ -136,6 +141,12 @@ function Services() {
             )
           : servicesWithDistance; // Show all if no location
         
+        console.log(`📍 Total services with distance: ${servicesWithDistance.length}`);
+        console.log(`📍 Services within ${maxRadius}km: ${nearbyServices.length}`);
+        if (servicesWithDistance.length > nearbyServices.length) {
+          console.log(`⚠️ ${servicesWithDistance.length - nearbyServices.length} services filtered out due to distance`);
+        }
+        
         // Sort by distance (closest first)
         const sortedServices = nearbyServices.sort((a, b) => {
           if (a.distance === null) return 1;
@@ -155,7 +166,7 @@ function Services() {
     };
     
     fetchServices();
-  }, [latitude, longitude, maxRadius]);
+  }, [latitude, longitude, maxRadius, refreshKey]);
   
   useEffect(() => {
     if (searchTerm.trim() === '') {
@@ -193,14 +204,14 @@ function Services() {
           {/* Search bar and Radius filter */}
           <div className="max-w-xl mx-auto space-y-4">
             <div className="relative">
-              <input
-                type="text"
-                placeholder="Search for services..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-3 pl-12 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900"
-              />
-              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search for services..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-4 py-3 pl-12 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900"
+            />
+            <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
             </div>
             
             {/* Radius Filter */}
@@ -234,11 +245,21 @@ function Services() {
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center mb-12">
             <h2 className="text-3xl font-bold text-gray-800">Available Services</h2>
-            {latitude && longitude && filteredServices.length > 0 && (
-              <p className="text-gray-600">
-                Showing <span className="font-bold text-teal-600">{filteredServices.length}</span> services within {maxRadius}km
-              </p>
-            )}
+            <div className="flex items-center gap-4">
+              {latitude && longitude && filteredServices.length > 0 && (
+                <p className="text-gray-600">
+                  Showing <span className="font-bold text-teal-600">{filteredServices.length}</span> services within {maxRadius}km
+                </p>
+              )}
+              <button
+                onClick={() => setRefreshKey(prev => prev + 1)}
+                disabled={loading}
+                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:bg-gray-400 text-white rounded-md transition-colors text-sm"
+                title="Refresh services list"
+              >
+                {loading ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </div>
           </div>
           
           {error && (
@@ -273,10 +294,10 @@ function Services() {
               )}
               <div className="flex gap-3 justify-center">
                 {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm("")}
+              <button
+                onClick={() => setSearchTerm("")}
                     className="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 transition-colors"
-                  >
+              >
                     Clear Search
                   </button>
                 )}
@@ -286,7 +307,7 @@ function Services() {
                     className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
                   >
                     Expand to 50km
-                  </button>
+              </button>
                 )}
               </div>
             </div>
