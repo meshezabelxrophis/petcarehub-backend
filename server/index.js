@@ -384,9 +384,12 @@ app.post('/api/services', async (req, res) => {
       description: description || '',
       price: parseFloat(price),
       category: category || 'General',
-      duration: duration || 60
+      duration: duration || 60,
+      isActive: true, // Mark service as active by default
+      createdAt: new Date()
     };
     
+    console.log(`✅ Creating service "${name}" for provider ${provider_id}`);
     const newService = await ServiceOffering.createService(serviceData);
     
         res.status(201).json({
@@ -410,11 +413,14 @@ app.get('/api/services', async (req, res) => {
   const providerId = req.query.provider_id;
   const providerName = req.query.provider_name;
     
+    console.log(`📥 Fetching services - providerId: ${providerId}, providerName: ${providerName}`);
+    
     let services;
   
   if (!providerId && !providerName) {
       // Return all services
       services = await ServiceOffering.getAllServices();
+      console.log(`  ✅ Fetched ${services.length} total services`);
   } else if (providerName) {
       // Search by provider name
       const allServices = await ServiceOffering.getAllServices();
