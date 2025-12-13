@@ -809,11 +809,49 @@ app.get('/api/bookings/pet-owner/:id', async (req, res) => {
         pet_type: pet?.species || null,
         pet_breed: pet?.breed || null,
         provider_name: provider?.name || null,
-        provider_email: provider?.email || null
+        provider_email: provider?.email || null,
+        created_at: booking.createdAt // Keep for deduplication
       };
     }));
     
-    res.json(enrichedBookings);
+    // Deduplicate bookings: Remove duplicates based on service, date, and pets
+    // Keep the most recent one (highest createdAt)
+    const uniqueBookings = [];
+    const bookingKeys = new Set();
+    
+    // Sort by createdAt descending (most recent first)
+    const sortedBookings = enrichedBookings.sort((a, b) => {
+      const dateA = a.created_at?.toDate?.() || new Date(a.created_at || 0);
+      const dateB = b.created_at?.toDate?.() || new Date(b.created_at || 0);
+      return dateB - dateA;
+    });
+    
+    for (const booking of sortedBookings) {
+      // Create a unique key for this booking
+      const petIdsKey = (booking.pet_ids || []).sort().join(',');
+      const key = `${booking.service_id}-${booking.booking_date}-${petIdsKey}`;
+      
+      // Only keep if we haven't seen this exact booking before
+      if (!bookingKeys.has(key)) {
+        bookingKeys.add(key);
+        // Remove created_at from the final response
+        const { created_at, ...bookingWithoutCreatedAt } = booking;
+        uniqueBookings.push(bookingWithoutCreatedAt);
+      } else {
+        console.log(`⚠️  Skipping duplicate booking ID: ${booking.id}`);
+      }
+    }
+    
+    console.log(`✅ Returning ${uniqueBookings.length} unique bookings (removed ${enrichedBookings.length - uniqueBookings.length} duplicates)`);
+    
+    // Sort by booking date descending (most recent bookings first)
+    uniqueBookings.sort((a, b) => {
+      const dateA = new Date(a.booking_date || 0);
+      const dateB = new Date(b.booking_date || 0);
+      return dateB - dateA;
+    });
+    
+    res.json(uniqueBookings);
   } catch (error) {
     console.error('Error fetching pet owner bookings:', error);
     res.status(500).json({ error: error.message });
@@ -1833,6 +1871,94 @@ app.get('/api/disease-stats/:userId', (req, res) => {
       });
     }
   );
+});
+
+// Cleanup endpoint to remove duplicate bookings from database
+app.delete('/api/bookings/cleanup-duplicates/:userId', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    
+    console.log(`🧹 Starting duplicate cleanup for user: ${userId}`);
+    
+    const bookings = await BookingService.getBookingsByUser(userId);
+    console.log(`Found ${bookings.length} total bookings`);
+    
+    // Enrich bookings to get service and pet data
+    const enrichedBookings = await Promise.all(bookings.map(async (booking) => {
+      const service = booking.serviceId ? await ServiceOffering.getServiceById(booking.serviceId) : null;
+      return {
+        ...booking,
+        service_name: service?.name || 'Unknown'
+      };
+    }));
+    
+    // Group bookings by unique key (service, date, pets)
+    const bookingGroups = new Map();
+    
+    for (const booking of enrichedBookings) {
+      const petIdsKey = (booking.petIds || [booking.petId]).sort().join(',');
+      const key = `${booking.serviceId}-${booking.bookingDate}-${petIdsKey}`;
+      
+      if (!bookingGroups.has(key)) {
+        bookingGroups.set(key, []);
+      }
+      bookingGroups.get(key).push(booking);
+    }
+    
+    // Find duplicates and keep only the most recent one
+    const toDelete = [];
+    let duplicateGroupCount = 0;
+    
+    for (const [key, group] of bookingGroups.entries()) {
+      if (group.length > 1) {
+        duplicateGroupCount++;
+        console.log(`\n📦 Found ${group.length} duplicates for: ${group[0].service_name} on ${group[0].bookingDate}`);
+        
+        // Sort by createdAt descending (keep most recent)
+        group.sort((a, b) => {
+          const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
+          const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
+          return dateB - dateA;
+        });
+        
+        // Keep the first one (most recent), delete the rest
+        const toKeep = group[0];
+        const toDeleteInGroup = group.slice(1);
+        
+        console.log(`  ✅ Keeping: ${toKeep.id} (created: ${toKeep.createdAt?.toDate?.() || 'unknown'})`);
+        toDeleteInGroup.forEach(b => {
+          console.log(`  ❌ Deleting: ${b.id} (created: ${b.createdAt?.toDate?.() || 'unknown'})`);
+        });
+        
+        toDelete.push(...toDeleteInGroup);
+      }
+    }
+    
+    // Delete the duplicates
+    let deletedCount = 0;
+    for (const booking of toDelete) {
+      try {
+        await BookingService.deleteBooking(booking.id);
+        deletedCount++;
+      } catch (error) {
+        console.error(`Failed to delete booking ${booking.id}:`, error);
+      }
+    }
+    
+    console.log(`\n✅ Cleanup complete: Deleted ${deletedCount} duplicate bookings`);
+    
+    res.json({
+      success: true,
+      message: `Cleaned up ${deletedCount} duplicate bookings`,
+      duplicateGroups: duplicateGroupCount,
+      deletedCount: deletedCount,
+      remainingBookings: bookings.length - deletedCount
+    });
+    
+  } catch (error) {
+    console.error('Error cleaning up duplicates:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // API-only backend - frontend hosted separately on Firebase
